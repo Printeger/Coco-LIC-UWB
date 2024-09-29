@@ -1,6 +1,6 @@
 /*
- * Coco-LIC: Coco-LIC: Continuous-Time Tightly-Coupled LiDAR-Inertial-Camera Odometry using Non-Uniform B-spline
- * Copyright (C) 2023 Xiaolei Lang
+ * Coco-LIC: Coco-LIC: Continuous-Time Tightly-Coupled LiDAR-Inertial-Camera
+ * Odometry using Non-Uniform B-spline Copyright (C) 2023 Xiaolei Lang
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -17,6 +17,7 @@
  */
 
 #include "trajectory.h"
+
 #include <fstream>
 
 namespace cocolic {
@@ -30,7 +31,7 @@ void Trajectory::GetIMUState(double time, IMUState &imu_state) const {
   imu_state.p = pose.translation();
 
   int64_t time_ns = time * S_TO_NS;
-  std::pair<int, double> su;  //i u
+  std::pair<int, double> su;  // i u
   bool flag = false;
   for (int i = 0; i < knts.size() - 1; i++) {
     if (time_ns >= knts[i] && time_ns < knts[i + 1]) {
@@ -73,7 +74,8 @@ void Trajectory::UndistortScan(const PosCloud &scan_raw,
   start_idx -= 2;
   if (start_idx < 0) start_idx = 0;
 
-  SE3d pose_G_to_target = GetLidarPoseNURBS(target_timestamp, start_idx).inverse();  // TL0_G
+  SE3d pose_G_to_target =
+      GetLidarPoseNURBS(target_timestamp, start_idx).inverse();  // TL0_G
 
   std::size_t cnt = 0;
   for (auto const &raw_p : scan_raw.points) {
@@ -169,7 +171,7 @@ SE3d Trajectory::GetSensorPose(const double timestamp,
 }
 
 SE3d Trajectory::GetSensorPoseNURBS(const int64_t timestamp,
-                               const ExtrinsicParam &EP_StoI) const {
+                                    const ExtrinsicParam &EP_StoI) const {
   int64_t time_ns = timestamp;
 
   assert(time_ns >= 0 && time_ns < this->maxTimeNsNURBS() &&
@@ -182,7 +184,8 @@ SE3d Trajectory::GetSensorPoseNURBS(const int64_t timestamp,
 }
 
 SE3d Trajectory::GetSensorPoseNURBS(const int64_t timestamp,
-                               const ExtrinsicParam &EP_StoI, int start_idx) const {
+                                    const ExtrinsicParam &EP_StoI,
+                                    int start_idx) const {
   int64_t time_ns = timestamp;
 
   assert(time_ns >= 0 && time_ns < this->maxTimeNsNURBS() &&
@@ -194,7 +197,8 @@ SE3d Trajectory::GetSensorPoseNURBS(const int64_t timestamp,
   return pose_S_to_G;
 }
 
-void Trajectory::ToTUMTxt(std::string traj_path, int64_t maxtime, bool is_evo_viral, double dt) {
+void Trajectory::ToTUMTxt(std::string traj_path, int64_t maxtime,
+                          bool is_evo_viral, double dt) {
   std::ofstream outfile;
   outfile.open(traj_path);
   outfile.setf(std::ios::fixed);
@@ -203,7 +207,8 @@ void Trajectory::ToTUMTxt(std::string traj_path, int64_t maxtime, bool is_evo_vi
   int64_t max_time = maxtime;
   int64_t dt_ns = dt * S_TO_NS;
   SE3d start_end;
-  SE3d start_pose = GetIMUPoseNsNURBS(min_time);
+  SE3d start_pose = GetIMUPoseNsNURBS(min_time);  // TODO
+  // SE3d start_pose;
   for (int64_t t = min_time; t < max_time; t += dt_ns) {
     SE3d pose = GetIMUPoseNsNURBS(t);
     Eigen::Vector3d p = pose.translation();
@@ -212,9 +217,12 @@ void Trajectory::ToTUMTxt(std::string traj_path, int64_t maxtime, bool is_evo_vi
 
     /// for VIRAL
     if (is_evo_viral) {
-      p = (q.toRotationMatrix() * Eigen::Vector3d(-0.293656, -0.012288, -0.273095) + p).eval();
+      p = (q.toRotationMatrix() *
+               Eigen::Vector3d(-0.293656, -0.012288, -0.273095) +
+           p)
+              .eval();
     }
-  
+
     double relative_bag_time = (data_start_time_ + t) * NS_TO_S;
     outfile.precision(9);
     outfile << relative_bag_time << " ";
@@ -226,7 +234,9 @@ void Trajectory::ToTUMTxt(std::string traj_path, int64_t maxtime, bool is_evo_vi
   std::cout << "\n🍺 Save trajectory at " << traj_path << std::endl;
 
   Eigen::AngleAxisd rotation_vector(start_end.unit_quaternion());
-  std::cout << "   Start-to-end deviation: " << std::setprecision(3) << start_end.translation().norm() << "m, " << rotation_vector.angle() * 180 / M_PI  << "°." << std::endl;
+  std::cout << "   Start-to-end deviation: " << std::setprecision(3)
+            << start_end.translation().norm() << "m, "
+            << rotation_vector.angle() * 180 / M_PI << "°." << std::endl;
 }
 
 }  // namespace cocolic

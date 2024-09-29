@@ -1,12 +1,12 @@
-odometry_mode: 0  # LIO = 0, LICO = 1
+odometry_mode: 1  # LIO = 0, LICO = 1
 
 log_path: /home/mint/ws_uav_setup/src/Coco-LIC-UWB/log
 config_path: /home/mint/ws_uav_setup/src/Coco-LIC-UWB/config
-lidar_yaml: /r3live/lidar.yaml
-imu_yaml: /r3live/imu.yaml
-camera_yaml: /r3live/camera.yaml
+lidar_yaml: /ipnl/lidar.yaml
+imu_yaml: /ipnl/imu.yaml
+camera_yaml: /ipnl/camera.yaml
 
-bag_path: /home/mint/data/degenerate_seq_02.bag  # degenerate_seq_01.bag、degenerate_seq_02.bag、hku_campus_seq_00.bag
+bag_path: /home/mint/data/2020-03-14-16-45-35.bag  # degenerate_seq_01.bag、degenerate_seq_02.bag、hku_campus_seq_00.bag
 bag_start: 0.
 bag_durr: -1
 

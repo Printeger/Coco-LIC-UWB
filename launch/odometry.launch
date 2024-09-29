@@ -1,6 +1,7 @@
 <?xml version="1.0"?>
 <launch>
-  <arg name="config_path"       default = "/config/ct_odometry_r3live.yaml" />
+  <!-- <arg name="config_path"       default = "/config/ct_odometry_r3live.yaml" /> -->
+  <arg name="config_path"       default = "/config/ct_odometry_ipnl.yaml" />
   <!-- <arg name="config_path"       default = "/config/ct_odometry_fastlivo.yaml" /> -->
   <!-- <arg name="config_path"       default = "/config/ct_odometry_viral.yaml" /> -->
   <!-- <arg name="config_path"       default = "/config/ct_odometry_lvisam.yaml" /> -->
@@ -11,7 +12,8 @@
 
   <!-- <node pkg="cocolic" type="odometry_node" name="$(anon odometry_node)" output="screen" clear_params="true" 
         launch-prefix="gdb -ex run &#45;&#45;args"> -->
-  <node pkg="cocolic" type="odometry_node" name="$(anon odometry_node)" output="screen">
+    <!-- <node pkg="cocolic" type="odometry_node" name="$(anon odometry_node)" output="screen"> -->
+    <node pkg="cocolic" type="odometry_node" name="$(anon odometry_node)" output="screen" launch-prefix="gdb -ex run --args">
     <param name="config_path"     type="string" value="$(find cocolic)$(arg config_path)" />
     <!-- if 'bag_path' is none here then use get the 'bag_path' params in the yaml file-->
     <param name="bag_path"        type="string" value="$(arg bag_path)" />

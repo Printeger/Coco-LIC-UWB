@@ -1,6 +1,6 @@
 /*
- * Coco-LIC: Coco-LIC: Continuous-Time Tightly-Coupled LiDAR-Inertial-Camera Odometry using Non-Uniform B-spline
- * Copyright (C) 2023 Xiaolei Lang
+ * Coco-LIC: Coco-LIC: Continuous-Time Tightly-Coupled LiDAR-Inertial-Camera
+ * Odometry using Non-Uniform B-spline Copyright (C) 2023 Xiaolei Lang
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,11 +18,12 @@
 
 #pragma once
 
-#include <pcl/point_cloud.h>
-#include <pcl/point_types.h>
-#include <pcl/type_traits.h>
+#include <pcl-1.13/pcl/filters/voxel_grid.h>
+#include <pcl-1.13/pcl/point_cloud.h>
+#include <pcl-1.13/pcl/point_types.h>
+#include <pcl-1.13/pcl/type_traits.h>
+
 #include <cmath>
-#include <pcl/filters/voxel_grid.h>
 
 namespace my_pcl {
 
@@ -30,7 +31,7 @@ struct PointXYZIRT {
   PCL_ADD_POINT4D;                 // quad-word XYZ
   float intensity;                 ///< laser intensity reading
   uint16_t ring;                   ///< laser ring number
-  int64_t time;                      ///< laser time reading
+  int64_t time;                    ///< laser time reading
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW  // ensure proper alignment
 } EIGEN_ALIGN16;
 
@@ -46,7 +47,7 @@ struct PointXYZIRTTmpHesai {
   PCL_ADD_POINT4D;                 // quad-word XYZ
   float intensity;                 ///< laser intensity reading
   uint16_t ring;                   ///< laser ring number
-  double timestamp;                      ///< laser time reading
+  double timestamp;                ///< laser time reading
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW  // ensure proper alignment
 } EIGEN_ALIGN16;
 
@@ -75,7 +76,7 @@ struct OusterPointXYZIRTTmp {
 struct PointXYZT {
   PCL_ADD_POINT4D;  /// quad-word XYZ
   float intensity;
-  int64_t timestamp;                /// laser timestamp
+  int64_t timestamp;               /// laser timestamp
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW  // ensure proper alignment
 } EIGEN_ALIGN16;
 
@@ -98,10 +99,10 @@ POINT_CLOUD_REGISTER_POINT_STRUCT(my_pcl::PointXYZIRT,           //
                                   (float, z, z)                  //
                                   (float, intensity, intensity)  //
                                   (uint16_t, ring, ring)         //
-                                  (int64_t, time, time)            //
+                                  (int64_t, time, time)          //
 )
 
-POINT_CLOUD_REGISTER_POINT_STRUCT(my_pcl::PointXYZIRTTmp,           //
+POINT_CLOUD_REGISTER_POINT_STRUCT(my_pcl::PointXYZIRTTmp,        //
                                   (float, x, x)                  //
                                   (float, y, y)                  //
                                   (float, z, z)                  //
@@ -110,13 +111,13 @@ POINT_CLOUD_REGISTER_POINT_STRUCT(my_pcl::PointXYZIRTTmp,           //
                                   (float, time, time)            //
 )
 
-POINT_CLOUD_REGISTER_POINT_STRUCT(my_pcl::PointXYZIRTTmpHesai,           //
-                                  (float, x, x)                  //
-                                  (float, y, y)                  //
-                                  (float, z, z)                  //
-                                  (float, intensity, intensity)  //
-                                  (uint16_t, ring, ring)         //
-                                  (double, timestamp, timestamp)            //
+POINT_CLOUD_REGISTER_POINT_STRUCT(my_pcl::PointXYZIRTTmpHesai,    //
+                                  (float, x, x)                   //
+                                  (float, y, y)                   //
+                                  (float, z, z)                   //
+                                  (float, intensity, intensity)   //
+                                  (uint16_t, ring, ring)          //
+                                  (double, timestamp, timestamp)  //
 )
 
 POINT_CLOUD_REGISTER_POINT_STRUCT(my_pcl::OusterPointXYZIRT,              //
@@ -124,13 +125,13 @@ POINT_CLOUD_REGISTER_POINT_STRUCT(my_pcl::OusterPointXYZIRT,              //
                                   (float, y, y)                           //
                                   (float, z, z)                           //
                                   (float, intensity, intensity)           //
-                                  (int64_t, t, t)                        //
+                                  (int64_t, t, t)                         //
                                   (uint16_t, reflectivity, reflectivity)  //
                                   (uint8_t, ring, ring)                   //
                                   // (uint16_t, ambient, ambient)            //
-                                  (uint32_t, range, range))               //
+                                  (uint32_t, range, range))  //
 
-POINT_CLOUD_REGISTER_POINT_STRUCT(my_pcl::OusterPointXYZIRTTmp,              //
+POINT_CLOUD_REGISTER_POINT_STRUCT(my_pcl::OusterPointXYZIRTTmp,           //
                                   (float, x, x)                           //
                                   (float, y, y)                           //
                                   (float, z, z)                           //
@@ -139,7 +140,7 @@ POINT_CLOUD_REGISTER_POINT_STRUCT(my_pcl::OusterPointXYZIRTTmp,              //
                                   (uint16_t, reflectivity, reflectivity)  //
                                   (uint8_t, ring, ring)                   //
                                   // (uint16_t, ambient, ambient)            //
-                                  (uint32_t, range, range))               //
+                                  (uint32_t, range, range))  //
 
 POINT_CLOUD_REGISTER_POINT_STRUCT(my_pcl::PointXYZT,              //
                                   (float, x, x)                   //
@@ -167,23 +168,25 @@ typedef pcl::PointXYZ GPoint;
 typedef pcl::PointCloud<GPoint> GPointCloud;
 
 ////////////////////////////////////////////////////////////////////////////////
-typedef my_pcl::PointXYZIRT RTPoint;  //int64_t time
+typedef my_pcl::PointXYZIRT RTPoint;  // int64_t time
 typedef pcl::PointCloud<RTPoint> RTPointCloud;
 
-typedef my_pcl::PointXYZIRTTmp RTPointTmp;  //float time（Velodyne——lvi、lio） 
+typedef my_pcl::PointXYZIRTTmp RTPointTmp;  // float time（Velodyne——lvi、lio）
 typedef pcl::PointCloud<RTPointTmp> RTPointCloudTmp;
 
-typedef my_pcl::OusterPointXYZIRTTmp OusterPointTmp;  //uint32_t t（Ouster——viral）
+typedef my_pcl::OusterPointXYZIRTTmp
+    OusterPointTmp;  // uint32_t t（Ouster——viral）
 typedef pcl::PointCloud<OusterPointTmp> OusterPointCloudTmp;
 
-typedef my_pcl::PointXYZIRTTmpHesai RTPointTmpHesai;  //double timestamp（Hesai） 
+typedef my_pcl::PointXYZIRTTmpHesai
+    RTPointTmpHesai;  // double timestamp（Hesai）
 typedef pcl::PointCloud<RTPointTmpHesai> RTPointCloudTmpHesai;
 
-typedef my_pcl::OusterPointXYZIRT OusterPoint;  //int64_t
+typedef my_pcl::OusterPointXYZIRT OusterPoint;  // int64_t
 typedef pcl::PointCloud<OusterPoint> OusterPointCloud;
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef my_pcl::PointXYZT PosPoint;  //int64_t
+typedef my_pcl::PointXYZT PosPoint;  // int64_t
 typedef pcl::PointCloud<PosPoint> PosCloud;
 
 typedef my_pcl::PointXYZIRPYT PosePoint;

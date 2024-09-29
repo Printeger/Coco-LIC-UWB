@@ -1,6 +1,6 @@
 /*
- * Coco-LIC: Coco-LIC: Continuous-Time Tightly-Coupled LiDAR-Inertial-Camera Odometry using Non-Uniform B-spline
- * Copyright (C) 2023 Xiaolei Lang
+ * Coco-LIC: Coco-LIC: Continuous-Time Tightly-Coupled LiDAR-Inertial-Camera
+ * Odometry using Non-Uniform B-spline Copyright (C) 2023 Xiaolei Lang
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,13 +18,13 @@
 
 #pragma once
 
-#include <pcl/common/common.h>
-#include <pcl/filters/voxel_grid.h>
-#include <pcl/kdtree/kdtree_flann.h>
+#include <pcl-1.13/pcl/common/common.h>
+#include <pcl-1.13/pcl/filters/voxel_grid.h>
+#include <pcl-1.13/pcl/kdtree/kdtree_flann.h>
+#include <utils/mypcl_cloud_type.h>
+
 #include <boost/sort/spreadsort/spreadsort.hpp>
 #include <iostream>
-
-#include <utils/mypcl_cloud_type.h>
 
 namespace pcl {
 template <typename TPoint>
@@ -103,8 +103,7 @@ inline void OusterPointCloud2RTPointCloud(
 }
 
 inline void RTPointCloudTmp2RTPointCloud(
-    const RTPointCloudTmp ::Ptr& input_cloud,
-    RTPointCloud::Ptr& output_cloud) {
+    const RTPointCloudTmp ::Ptr& input_cloud, RTPointCloud::Ptr& output_cloud) {
   output_cloud->header = input_cloud->header;
   output_cloud->height = input_cloud->height;
   output_cloud->width = input_cloud->width;
@@ -124,7 +123,7 @@ inline void RTPointCloudTmp2RTPointCloud(
     dst.z = src.z;
     dst.intensity = src.intensity;
     dst.ring = src.ring;
-    dst.time = int64_t(src.time * 1e9);  // float src.time = 0.0995 
+    dst.time = int64_t(src.time * 1e9);  // float src.time = 0.0995
 
     if (PointNorm(dst) < 0.1 || dst.time > 0.11 * 1e9) {
       dst = zero_point;
@@ -157,7 +156,8 @@ inline void RTPointCloudTmp2RTPointCloudHesai(
     dst.z = src.z;
     dst.intensity = src.intensity;
     dst.ring = src.ring;
-    dst.time = int64_t((src.timestamp - first_timestamp) * 1e9);  // float src.time = 0.0995 
+    dst.time = int64_t((src.timestamp - first_timestamp) *
+                       1e9);  // float src.time = 0.0995
 
     if (PointNorm(dst) < 0.1 || dst.time > 0.11 * 1e9) {
       dst = zero_point;

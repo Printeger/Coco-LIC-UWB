@@ -38,12 +38,14 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #pragma once
 
+#include <ros/console.h>
+
+#include <array>
+
 #include "assert.h"
 #include "rd_spline.h"
 #include "so3_spline.h"
 #include "spline_segment.h"
-
-#include <array>
 
 namespace cocolic {
 
@@ -111,21 +113,21 @@ class Se3Spline {
       : pos_spline(time_interval_ns, start_time_ns),
         so3_spline(time_interval_ns, start_time_ns),
         dt_ns_(time_interval_ns) {
-          knts.clear();
+    knts.clear();
 
-          // knts.push_back(-0.3 * S_TO_NS);
-          // knts.push_back(-0.2 * S_TO_NS);
-          // knts.push_back(-0.1 * S_TO_NS);
-          
-          knts.push_back(-0.09 * S_TO_NS);
-          knts.push_back(-0.06 * S_TO_NS);
-          knts.push_back(-0.03 * S_TO_NS);
-          
-          // for (int i = 0; i < 3; i++) knts.push_back(0.0 * S_TO_NS);
-          
-          blending_mats.clear();
-          cumu_blending_mats.clear();
-          startIdx = 0;
+    // knts.push_back(-0.3 * S_TO_NS);
+    // knts.push_back(-0.2 * S_TO_NS);
+    // knts.push_back(-0.1 * S_TO_NS);
+
+    knts.push_back(-0.09 * S_TO_NS);
+    knts.push_back(-0.06 * S_TO_NS);
+    knts.push_back(-0.03 * S_TO_NS);
+
+    // for (int i = 0; i < 3; i++) knts.push_back(0.0 * S_TO_NS);
+
+    blending_mats.clear();
+    cumu_blending_mats.clear();
+    startIdx = 0;
   }
 
   /// @brief Gererate random trajectory
@@ -366,9 +368,7 @@ class Se3Spline {
   //   return knts.back();
   // }
 
-  int64_t maxTimeNsNURBS() const {
-    return max_time_ns;
-  }
+  int64_t maxTimeNsNURBS() const { return max_time_ns; }
 
   void SetMaxTimeNsNURBS(int64_t max_time_ns) {
     this->max_time_ns = max_time_ns;
@@ -393,8 +393,9 @@ class Se3Spline {
   }
 
   /// [nurbs]
-  inline Vec3 transVelWorldNURBS(const std::pair<int, double>& su,
-    double delta_t, const Eigen::Matrix4d& blend_mat) const {
+  inline Vec3 transVelWorldNURBS(const std::pair<int, double> &su,
+                                 double delta_t,
+                                 const Eigen::Matrix4d &blend_mat) const {
     return pos_spline.velocityNURBS(su, delta_t, blend_mat);
   }
 
@@ -419,7 +420,7 @@ class Se3Spline {
 
   /// [nurbs]
   inline Vec3 rotVelBodyNURBS(int64_t time_ns) const {
-    std::pair<int, double> su;  //i和u
+    std::pair<int, double> su;  // i和u
     bool flag = false;
     for (int i = 0; i < knts.size() - 1; i++) {
       if (time_ns >= knts[i] && time_ns < knts[i + 1]) {
@@ -428,14 +429,16 @@ class Se3Spline {
         flag = true;
       }
     }
-    if (!flag) std::cout << "[poseNsNURBS query wrong]\n";
+    if (!flag) ROS_WARN("[poseNsNURBS query wrong - rotVelBodyNURBS]");
     // GetIdxT(time_ns, su);
 
-    Eigen::Matrix4d cumulative_blending_matrix = cumu_blending_mats[su.first - 3];
+    Eigen::Matrix4d cumulative_blending_matrix =
+        cumu_blending_mats[su.first - 3];
 
-    return so3_spline.velocityBodyNURBS(su.first - 3, su.second, 
-                                                                     (knts[su.first + 1] - knts[su.first]) * NS_TO_S, 
-                                                                     cumulative_blending_matrix);
+    return so3_spline.velocityBodyNURBS(
+        su.first - 3, su.second,
+        (knts[su.first + 1] - knts[su.first]) * NS_TO_S,
+        cumulative_blending_matrix);
   }
 
   inline Vec3 rotAccelBody(int64_t time_ns) const {
@@ -458,7 +461,7 @@ class Se3Spline {
   SE3 poseNsNURBS(int64_t time_ns) const {
     SE3 res;
 
-    std::pair<int, double> su;  //i-k u
+    std::pair<int, double> su;  // i-k u
     bool flag = false;
     for (int i = 0; i < knts.size() - 1; i++) {
       if (time_ns >= knts[i] && time_ns < knts[i + 1]) {
@@ -467,17 +470,18 @@ class Se3Spline {
         flag = true;
       }
     }
-    if (!flag) std::cout << "[poseNsNURBS query wrong]\n";
+    if (!flag) ROS_WARN("[poseNsNURBS query wrong - poseNsNURBS]");
     // GetIdxT(time_ns, su);
 
     Eigen::Matrix4d blending_matrix = blending_mats[su.first - 3];
-    Eigen::Matrix4d cumulative_blending_matrix = cumu_blending_mats[su.first - 3];
+    Eigen::Matrix4d cumulative_blending_matrix =
+        cumu_blending_mats[su.first - 3];
 
-    res.so3() = so3_spline.evaluateNURBS(su.first - 3, su.second, 
-                                                                     cumulative_blending_matrix);
-    res.translation() = pos_spline.evaluateNURBS(su.first - 3, su.second, 
-                                                                     (knts[su.first + 1] - knts[su.first]) * NS_TO_S, 
-                                                                     blending_matrix);
+    res.so3() = so3_spline.evaluateNURBS(su.first - 3, su.second,
+                                         cumulative_blending_matrix);
+    res.translation() = pos_spline.evaluateNURBS(
+        su.first - 3, su.second,
+        (knts[su.first + 1] - knts[su.first]) * NS_TO_S, blending_matrix);
 
     return res;
   }
@@ -485,7 +489,7 @@ class Se3Spline {
   SE3 poseNsNURBS(int64_t time_ns, int start_idx) const {
     SE3 res;
 
-    std::pair<int, double> su;  //i-k u
+    std::pair<int, double> su;  // i-k u
     bool flag = false;
     for (int i = start_idx; i < knts.size() - 1; i++) {
       if (time_ns >= knts[i] && time_ns < knts[i + 1]) {
@@ -494,17 +498,18 @@ class Se3Spline {
         flag = true;
       }
     }
-    if (!flag) std::cout << "[poseNsNURBS query wrong]\n";
+    if (!flag) ROS_WARN("[poseNsNURBS query wrong - poseNsNURBS]");
     // GetIdxT(time_ns, su);
 
     Eigen::Matrix4d blending_matrix = blending_mats[su.first - 3];
-    Eigen::Matrix4d cumulative_blending_matrix = cumu_blending_mats[su.first - 3];
+    Eigen::Matrix4d cumulative_blending_matrix =
+        cumu_blending_mats[su.first - 3];
 
-    res.so3() = so3_spline.evaluateNURBS(su.first - 3, su.second, 
-                                                                     cumulative_blending_matrix);
-    res.translation() = pos_spline.evaluateNURBS(su.first - 3, su.second, 
-                                                                     (knts[su.first + 1] - knts[su.first]) * NS_TO_S, 
-                                                                     blending_matrix);
+    res.so3() = so3_spline.evaluateNURBS(su.first - 3, su.second,
+                                         cumulative_blending_matrix);
+    res.translation() = pos_spline.evaluateNURBS(
+        su.first - 3, su.second,
+        (knts[su.first + 1] - knts[su.first]) * NS_TO_S, blending_matrix);
 
     return res;
   }
@@ -573,7 +578,7 @@ class Se3Spline {
   /// [nurbs]
   size_t GetCtrlIndexNURBS(int64_t time_ns) const {
     int res = INT_MAX;
-    for (int i = 0; i < knts.size() -1; i++) {
+    for (int i = 0; i < knts.size() - 1; i++) {
       if (time_ns >= knts[i] && time_ns < knts[i + 1]) {
         res = i;
         break;
@@ -583,7 +588,7 @@ class Se3Spline {
     return res;
   }
 
-  void GetIdxT(int64_t time_ns, std::pair<int, double>& su) {
+  void GetIdxT(int64_t time_ns, std::pair<int, double> &su) {
     bool flag = false;
     // for (int i = 0; i < knts.size() - 1; i++) {
     for (int i = startIdx; i < knts.size() - 1; i++) {
@@ -594,7 +599,7 @@ class Se3Spline {
         return;
       }
     }
-    if (!flag) { 
+    if (!flag) {
       std::cout << "[GetIdxT wrong]\n";
       std::cout << "[start_knt] " << knts[startIdx] << std::endl;
       std::cout << "[knt_max] " << knts.back() << std::endl;
@@ -602,7 +607,7 @@ class Se3Spline {
     }
   }
 
-  void GetIdxT(int64_t time_ns, std::pair<int, double>& su, bool from_start) {
+  void GetIdxT(int64_t time_ns, std::pair<int, double> &su, bool from_start) {
     bool flag = false;
     // for (int i = 0; i < knts.size() - 1; i++) {
     for (int i = 0; i < knts.size() - 1; i++) {
@@ -619,29 +624,37 @@ class Se3Spline {
   /// [for vector]
   void InitBlendMat() {
     Eigen::Matrix4d blending_mat = Eigen::Matrix4d::Zero();
-    
+
     double ti = knts[3] * NS_TO_S;
     double ti_minus_2 = knts[1] * NS_TO_S;
     double ti_minus_1 = knts[2] * NS_TO_S;
     double ti_plus_1 = knts[4] * NS_TO_S;
     double ti_plus_2 = knts[5] * NS_TO_S;
     double ti_plus_3 = knts[6] * NS_TO_S;
-    blending_mat(0, 0) = (ti_plus_1 - ti) * (ti_plus_1 - ti) / ((ti_plus_1- ti_minus_1) * (ti_plus_1 - ti_minus_2));
-    blending_mat(0, 2) = (ti - ti_minus_1) * (ti - ti_minus_1) / ((ti_plus_2 - ti_minus_1) * (ti_plus_1 - ti_minus_1));
-    blending_mat(1, 2) = 3 * (ti_plus_1 - ti) * (ti - ti_minus_1) / ((ti_plus_2 - ti_minus_1) * (ti_plus_1 - ti_minus_1));
-    blending_mat(2, 2) = 3* (ti_plus_1 - ti) * (ti_plus_1 - ti) / ((ti_plus_2 - ti_minus_1) * (ti_plus_1 - ti_minus_1));
-    blending_mat(3, 3) = (ti_plus_1 - ti) * (ti_plus_1 - ti) / ((ti_plus_3 - ti) * (ti_plus_2 - ti));
-    blending_mat(0, 1) = 1- blending_mat(0, 0) - blending_mat(0, 2);
+    blending_mat(0, 0) = (ti_plus_1 - ti) * (ti_plus_1 - ti) /
+                         ((ti_plus_1 - ti_minus_1) * (ti_plus_1 - ti_minus_2));
+    blending_mat(0, 2) = (ti - ti_minus_1) * (ti - ti_minus_1) /
+                         ((ti_plus_2 - ti_minus_1) * (ti_plus_1 - ti_minus_1));
+    blending_mat(1, 2) = 3 * (ti_plus_1 - ti) * (ti - ti_minus_1) /
+                         ((ti_plus_2 - ti_minus_1) * (ti_plus_1 - ti_minus_1));
+    blending_mat(2, 2) = 3 * (ti_plus_1 - ti) * (ti_plus_1 - ti) /
+                         ((ti_plus_2 - ti_minus_1) * (ti_plus_1 - ti_minus_1));
+    blending_mat(3, 3) = (ti_plus_1 - ti) * (ti_plus_1 - ti) /
+                         ((ti_plus_3 - ti) * (ti_plus_2 - ti));
+    blending_mat(0, 1) = 1 - blending_mat(0, 0) - blending_mat(0, 2);
     blending_mat(0, 3) = 0;
-    blending_mat(1, 0) = - 3 * blending_mat(0, 0);
+    blending_mat(1, 0) = -3 * blending_mat(0, 0);
     blending_mat(1, 1) = 3 * blending_mat(0, 0) - blending_mat(1, 2);
     blending_mat(1, 3) = 0;
     blending_mat(2, 0) = 3 * blending_mat(0, 0);
-    blending_mat(2, 1) = - 3 * blending_mat(0, 0) - blending_mat(2, 2);
+    blending_mat(2, 1) = -3 * blending_mat(0, 0) - blending_mat(2, 2);
     blending_mat(2, 3) = 0;
-    blending_mat(3, 0) = - blending_mat(0, 0);
-    blending_mat(3, 2) = - blending_mat(2, 2) / 3 - blending_mat(3, 3) - (ti_plus_1 - ti) * (ti_plus_1 - ti) / ((ti_plus_2 - ti) * (ti_plus_2 - ti_minus_1));
-    blending_mat(3, 1) = blending_mat(0, 0) - blending_mat(3, 2) - blending_mat(3, 3);
+    blending_mat(3, 0) = -blending_mat(0, 0);
+    blending_mat(3, 2) = -blending_mat(2, 2) / 3 - blending_mat(3, 3) -
+                         (ti_plus_1 - ti) * (ti_plus_1 - ti) /
+                             ((ti_plus_2 - ti) * (ti_plus_2 - ti_minus_1));
+    blending_mat(3, 1) =
+        blending_mat(0, 0) - blending_mat(3, 2) - blending_mat(3, 3);
     blending_mat = (blending_mat.transpose()).eval();
 
     // blending_mat = Eigen::Matrix4d::Zero();
@@ -651,10 +664,8 @@ class Se3Spline {
     //                                     0.0, 0.0, 0.0, 1.0 / 6;
 
     Eigen::Matrix4d cumu_blending_mat = blending_mat;
-    for (int i = 0; i < 4; i++) 
-    {
-      for (int j = i + 1; j < 4; j++) 
-      {
+    for (int i = 0; i < 4; i++) {
+      for (int j = i + 1; j < 4; j++) {
         cumu_blending_mat.row(i) += cumu_blending_mat.row(j);
       }
     }
@@ -664,7 +675,7 @@ class Se3Spline {
 
   void AddBlendMat(int offset) {
     Eigen::Matrix4d blending_mat = Eigen::Matrix4d::Zero();
-    
+
     int cur_idx = knts.size() - 1 - offset;
     LOG(INFO) << "[cur_idx] " << cur_idx;
     double ti = knts[cur_idx] * NS_TO_S;
@@ -673,22 +684,30 @@ class Se3Spline {
     double ti_plus_1 = knts[cur_idx + 1] * NS_TO_S;
     double ti_plus_2 = knts[cur_idx + 2] * NS_TO_S;
     double ti_plus_3 = knts[cur_idx + 3] * NS_TO_S;
-    blending_mat(0, 0) = (ti_plus_1 - ti) * (ti_plus_1 - ti) / ((ti_plus_1- ti_minus_1) * (ti_plus_1 - ti_minus_2));
-    blending_mat(0, 2) = (ti - ti_minus_1) * (ti - ti_minus_1) / ((ti_plus_2 - ti_minus_1) * (ti_plus_1 - ti_minus_1));
-    blending_mat(1, 2) = 3 * (ti_plus_1 - ti) * (ti - ti_minus_1) / ((ti_plus_2 - ti_minus_1) * (ti_plus_1 - ti_minus_1));
-    blending_mat(2, 2) = 3* (ti_plus_1 - ti) * (ti_plus_1 - ti) / ((ti_plus_2 - ti_minus_1) * (ti_plus_1 - ti_minus_1));
-    blending_mat(3, 3) = (ti_plus_1 - ti) * (ti_plus_1 - ti) / ((ti_plus_3 - ti) * (ti_plus_2 - ti));
-    blending_mat(0, 1) = 1- blending_mat(0, 0) - blending_mat(0, 2);
+    blending_mat(0, 0) = (ti_plus_1 - ti) * (ti_plus_1 - ti) /
+                         ((ti_plus_1 - ti_minus_1) * (ti_plus_1 - ti_minus_2));
+    blending_mat(0, 2) = (ti - ti_minus_1) * (ti - ti_minus_1) /
+                         ((ti_plus_2 - ti_minus_1) * (ti_plus_1 - ti_minus_1));
+    blending_mat(1, 2) = 3 * (ti_plus_1 - ti) * (ti - ti_minus_1) /
+                         ((ti_plus_2 - ti_minus_1) * (ti_plus_1 - ti_minus_1));
+    blending_mat(2, 2) = 3 * (ti_plus_1 - ti) * (ti_plus_1 - ti) /
+                         ((ti_plus_2 - ti_minus_1) * (ti_plus_1 - ti_minus_1));
+    blending_mat(3, 3) = (ti_plus_1 - ti) * (ti_plus_1 - ti) /
+                         ((ti_plus_3 - ti) * (ti_plus_2 - ti));
+    blending_mat(0, 1) = 1 - blending_mat(0, 0) - blending_mat(0, 2);
     blending_mat(0, 3) = 0;
-    blending_mat(1, 0) = - 3 * blending_mat(0, 0);
+    blending_mat(1, 0) = -3 * blending_mat(0, 0);
     blending_mat(1, 1) = 3 * blending_mat(0, 0) - blending_mat(1, 2);
     blending_mat(1, 3) = 0;
     blending_mat(2, 0) = 3 * blending_mat(0, 0);
-    blending_mat(2, 1) = - 3 * blending_mat(0, 0) - blending_mat(2, 2);
+    blending_mat(2, 1) = -3 * blending_mat(0, 0) - blending_mat(2, 2);
     blending_mat(2, 3) = 0;
-    blending_mat(3, 0) = - blending_mat(0, 0);
-    blending_mat(3, 2) = - blending_mat(2, 2) / 3 - blending_mat(3, 3) - (ti_plus_1 - ti) * (ti_plus_1 - ti) / ((ti_plus_2 - ti) * (ti_plus_2 - ti_minus_1));
-    blending_mat(3, 1) = blending_mat(0, 0) - blending_mat(3, 2) - blending_mat(3, 3);
+    blending_mat(3, 0) = -blending_mat(0, 0);
+    blending_mat(3, 2) = -blending_mat(2, 2) / 3 - blending_mat(3, 3) -
+                         (ti_plus_1 - ti) * (ti_plus_1 - ti) /
+                             ((ti_plus_2 - ti) * (ti_plus_2 - ti_minus_1));
+    blending_mat(3, 1) =
+        blending_mat(0, 0) - blending_mat(3, 2) - blending_mat(3, 3);
     blending_mat = (blending_mat.transpose()).eval();
 
     // blending_mat = Eigen::Matrix4d::Zero();
@@ -698,10 +717,8 @@ class Se3Spline {
     //                                     0.0, 0.0, 0.0, 1.0 / 6;
 
     Eigen::Matrix4d cumu_blending_mat = blending_mat;
-    for (int i = 0; i < 4; i++) 
-    {
-      for (int j = i + 1; j < 4; j++) 
-      {
+    for (int i = 0; i < 4; i++) {
+      for (int j = i + 1; j < 4; j++) {
         cumu_blending_mat.row(i) += cumu_blending_mat.row(j);
       }
     }
@@ -711,29 +728,37 @@ class Se3Spline {
 
   void AddBlendMatForGen(int cur_idx) {
     Eigen::Matrix4d blending_mat = Eigen::Matrix4d::Zero();
-    
+
     double ti = knts[cur_idx] * NS_TO_S;
     double ti_minus_2 = knts[cur_idx - 2] * NS_TO_S;
     double ti_minus_1 = knts[cur_idx - 1] * NS_TO_S;
     double ti_plus_1 = knts[cur_idx + 1] * NS_TO_S;
     double ti_plus_2 = knts[cur_idx + 2] * NS_TO_S;
     double ti_plus_3 = knts[cur_idx + 3] * NS_TO_S;
-    blending_mat(0, 0) = (ti_plus_1 - ti) * (ti_plus_1 - ti) / ((ti_plus_1- ti_minus_1) * (ti_plus_1 - ti_minus_2));
-    blending_mat(0, 2) = (ti - ti_minus_1) * (ti - ti_minus_1) / ((ti_plus_2 - ti_minus_1) * (ti_plus_1 - ti_minus_1));
-    blending_mat(1, 2) = 3 * (ti_plus_1 - ti) * (ti - ti_minus_1) / ((ti_plus_2 - ti_minus_1) * (ti_plus_1 - ti_minus_1));
-    blending_mat(2, 2) = 3* (ti_plus_1 - ti) * (ti_plus_1 - ti) / ((ti_plus_2 - ti_minus_1) * (ti_plus_1 - ti_minus_1));
-    blending_mat(3, 3) = (ti_plus_1 - ti) * (ti_plus_1 - ti) / ((ti_plus_3 - ti) * (ti_plus_2 - ti));
-    blending_mat(0, 1) = 1- blending_mat(0, 0) - blending_mat(0, 2);
+    blending_mat(0, 0) = (ti_plus_1 - ti) * (ti_plus_1 - ti) /
+                         ((ti_plus_1 - ti_minus_1) * (ti_plus_1 - ti_minus_2));
+    blending_mat(0, 2) = (ti - ti_minus_1) * (ti - ti_minus_1) /
+                         ((ti_plus_2 - ti_minus_1) * (ti_plus_1 - ti_minus_1));
+    blending_mat(1, 2) = 3 * (ti_plus_1 - ti) * (ti - ti_minus_1) /
+                         ((ti_plus_2 - ti_minus_1) * (ti_plus_1 - ti_minus_1));
+    blending_mat(2, 2) = 3 * (ti_plus_1 - ti) * (ti_plus_1 - ti) /
+                         ((ti_plus_2 - ti_minus_1) * (ti_plus_1 - ti_minus_1));
+    blending_mat(3, 3) = (ti_plus_1 - ti) * (ti_plus_1 - ti) /
+                         ((ti_plus_3 - ti) * (ti_plus_2 - ti));
+    blending_mat(0, 1) = 1 - blending_mat(0, 0) - blending_mat(0, 2);
     blending_mat(0, 3) = 0;
-    blending_mat(1, 0) = - 3 * blending_mat(0, 0);
+    blending_mat(1, 0) = -3 * blending_mat(0, 0);
     blending_mat(1, 1) = 3 * blending_mat(0, 0) - blending_mat(1, 2);
     blending_mat(1, 3) = 0;
     blending_mat(2, 0) = 3 * blending_mat(0, 0);
-    blending_mat(2, 1) = - 3 * blending_mat(0, 0) - blending_mat(2, 2);
+    blending_mat(2, 1) = -3 * blending_mat(0, 0) - blending_mat(2, 2);
     blending_mat(2, 3) = 0;
-    blending_mat(3, 0) = - blending_mat(0, 0);
-    blending_mat(3, 2) = - blending_mat(2, 2) / 3 - blending_mat(3, 3) - (ti_plus_1 - ti) * (ti_plus_1 - ti) / ((ti_plus_2 - ti) * (ti_plus_2 - ti_minus_1));
-    blending_mat(3, 1) = blending_mat(0, 0) - blending_mat(3, 2) - blending_mat(3, 3);
+    blending_mat(3, 0) = -blending_mat(0, 0);
+    blending_mat(3, 2) = -blending_mat(2, 2) / 3 - blending_mat(3, 3) -
+                         (ti_plus_1 - ti) * (ti_plus_1 - ti) /
+                             ((ti_plus_2 - ti) * (ti_plus_2 - ti_minus_1));
+    blending_mat(3, 1) =
+        blending_mat(0, 0) - blending_mat(3, 2) - blending_mat(3, 3);
     blending_mat = (blending_mat.transpose()).eval();
 
     // blending_mat = Eigen::Matrix4d::Zero();
@@ -743,10 +768,8 @@ class Se3Spline {
     //                                     0.0, 0.0, 0.0, 1.0 / 6;
 
     Eigen::Matrix4d cumu_blending_mat = blending_mat;
-    for (int i = 0; i < 4; i++) 
-    {
-      for (int j = i + 1; j < 4; j++) 
-      {
+    for (int i = 0; i < 4; i++) {
+      for (int j = i + 1; j < 4; j++) {
         cumu_blending_mat.row(i) += cumu_blending_mat.row(j);
       }
     }

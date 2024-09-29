@@ -1,6 +1,6 @@
 /*
- * Coco-LIC: Coco-LIC: Continuous-Time Tightly-Coupled LiDAR-Inertial-Camera Odometry using Non-Uniform B-spline
- * Copyright (C) 2023 Xiaolei Lang
+ * Coco-LIC: Coco-LIC: Continuous-Time Tightly-Coupled LiDAR-Inertial-Camera
+ * Odometry using Non-Uniform B-spline Copyright (C) 2023 Xiaolei Lang
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,6 +18,7 @@
 
 #include <glog/logging.h>
 #include <imu/imu_initializer.h>
+
 #include <iomanip>
 
 namespace cocolic {
@@ -86,63 +87,94 @@ bool IMUInitializer::StaticInitialIMUState() {
       window_length_)
     return false;
 
-  Eigen::Vector3d accel_avg(0, 0, 0);
-  Eigen::Vector3d gyro_avg(0, 0, 0);
+  bool is_moving = false;
+  if (is_moving) {
+    Eigen::Matrix3d R_I0toG = Eigen::Matrix3d::Identity();
+    Eigen::Vector3d temp_bias(1e-6, 1e-6, 1e-6);
+    imu_state_.q = R_I0toG;
+    imu_state_.bias.accel_bias = temp_bias;
+    imu_state_.bias.gyro_bias = temp_bias;
+    imu_state_.g = gravity_;  // gw
 
-  std::vector<IMUData> imu_cache;
-  for (size_t i = imu_datas_.size() - 1; i >= 0; i--) {
-    accel_avg += imu_datas_[i].accel;
-    gyro_avg += imu_datas_[i].gyro;
-    imu_cache.push_back(imu_datas_[i]);
-    if (imu_datas_.back().timestamp - imu_datas_[i].timestamp >= window_length_)
-      break;
+    LOG(INFO) << "[InertialInitializer] "
+              << "first imu time : " << imu_datas_.front().timestamp * 1e-9;
+    LOG(INFO) << "[InertialInitializer] "
+              << "imu_datas_ : " << imu_datas_.size();
+    LOG(INFO) << "[InertialInitializer] "
+              << "imu_cache : " << imu_datas_.size();
+    LOG(INFO) << "[InertialInitializer] "
+              << "Accel bias : " << imu_state_.bias.accel_bias.transpose();
+    LOG(INFO) << "[InertialInitializer] "
+              << "Gyro bias : " << imu_state_.bias.gyro_bias.transpose();
+  } else {
+    Eigen::Vector3d accel_avg(0, 0, 0);
+    Eigen::Vector3d gyro_avg(0, 0, 0);
+
+    std::vector<IMUData> imu_cache;
+    for (size_t i = imu_datas_.size() - 1; i >= 0; i--) {
+      accel_avg += imu_datas_[i].accel;
+      gyro_avg += imu_datas_[i].gyro;
+      imu_cache.push_back(imu_datas_[i]);
+      if (imu_datas_.back().timestamp - imu_datas_[i].timestamp >=
+          window_length_)
+        break;
+    }
+    accel_avg /= (int)imu_cache.size();
+    gyro_avg /= (int)imu_cache.size();
+
+    double accel_var = 0;
+    for (size_t i = 0; i < imu_cache.size(); i++) {
+      accel_var +=
+          (imu_cache[i].accel - accel_avg).dot(imu_cache[i].accel - accel_avg);
+    }
+    // Unbiased estimation std
+    accel_var = std::sqrt(accel_var / ((int)imu_cache.size() - 1));
+
+    if (accel_var >= imu_excite_threshold_) {
+      LOG(WARNING) << "[IMUInitializer] Dont Move !";
+      return false;
+    }
+
+    Eigen::Vector3d z_axis = accel_avg / accel_avg.norm();
+    // std::cout << MAGENTA << "[accel_avg] " << accel_avg.transpose() << RESET
+    // << std::endl; std::cout << MAGENTA << "[z_axis] " << z_axis.transpose()
+    // << RESET << std::endl;
+    Eigen::Vector3d e_1(1, 0, 0);
+    Eigen::Vector3d x_axis = e_1 - z_axis * z_axis.transpose() * e_1;
+    x_axis = x_axis / x_axis.norm();
+
+    Eigen::Matrix<double, 3, 1> y_axis =
+        Eigen::SkewSymmetric<double>(z_axis) * x_axis;
+
+    Eigen::Matrix<double, 3, 3> Rot;  // R_GtoI0
+    Rot.block<3, 1>(0, 0) = x_axis;
+    Rot.block<3, 1>(0, 1) = y_axis;
+    Rot.block<3, 1>(0, 2) = z_axis;
+    Eigen::Vector3d g_inI0 = Rot * gravity_;
+
+    Eigen::Matrix3d R_I0toG = Rot.inverse();
+    // double yaw = R2ypr(R_I0toG).x();
+    // LOG(INFO) << "[yaw] " << yaw;
+    // R_I0toG = (ypr2R(Eigen::Vector3d{-yaw, 0, 0}) * R_I0toG).eval();
+    imu_state_.q = R_I0toG;
+    imu_state_.bias.accel_bias = accel_avg - g_inI0;
+    imu_state_.bias.gyro_bias = gyro_avg;
+    imu_state_.g = gravity_;  // gw
+
+    LOG(INFO) << "[InertialInitializer] "
+              << "first imu time : " << imu_datas_.front().timestamp * 1e-9;
+    LOG(INFO) << "[InertialInitializer] "
+              << "imu_datas_ : " << imu_datas_.size();
+    LOG(INFO) << "[InertialInitializer] "
+              << "imu_cache : " << imu_datas_.size();
+    LOG(INFO) << "[InertialInitializer] "
+              << "Accel bias : " << imu_state_.bias.accel_bias.transpose();
+    LOG(INFO) << "[InertialInitializer] "
+              << "Gyro bias : " << imu_state_.bias.gyro_bias.transpose();
+    LOG(INFO) << "[InertialInitializer] "
+              << "gravity in I0 : " << g_inI0.transpose();
   }
-  accel_avg /= (int)imu_cache.size();
-  gyro_avg /= (int)imu_cache.size();
 
-  double accel_var = 0;
-  for (size_t i = 0; i < imu_cache.size(); i++) {
-    accel_var +=
-        (imu_cache[i].accel - accel_avg).dot(imu_cache[i].accel - accel_avg);
-  }
-  accel_var = std::sqrt(accel_var / ((int)imu_cache.size() - 1));
-
-  if (accel_var >= imu_excite_threshold_) {
-    LOG(WARNING) << "[IMUInitializer] Dont Move !";
-    return false;
-  }
-
-  Eigen::Vector3d z_axis = accel_avg / accel_avg.norm();
-  // std::cout << MAGENTA << "[accel_avg] " << accel_avg.transpose() << RESET << std::endl;
-  // std::cout << MAGENTA << "[z_axis] " << z_axis.transpose() << RESET << std::endl;
-  Eigen::Vector3d e_1(1, 0, 0);
-  Eigen::Vector3d x_axis = e_1 - z_axis * z_axis.transpose() * e_1;
-  x_axis = x_axis / x_axis.norm();
-
-  Eigen::Matrix<double, 3, 1> y_axis =
-      Eigen::SkewSymmetric<double>(z_axis) * x_axis;
-
-  Eigen::Matrix<double, 3, 3> Rot;  //R_GtoI0
-  Rot.block<3, 1>(0, 0) = x_axis;
-  Rot.block<3, 1>(0, 1) = y_axis;
-  Rot.block<3, 1>(0, 2) = z_axis;
-  Eigen::Vector3d g_inI0 = Rot * gravity_;
-
-  Eigen::Matrix3d R_I0toG = Rot.inverse();
-  // double yaw = R2ypr(R_I0toG).x();
-  // LOG(INFO) << "[yaw] " << yaw;
-  // R_I0toG = (ypr2R(Eigen::Vector3d{-yaw, 0, 0}) * R_I0toG).eval();
-  imu_state_.q = R_I0toG;
-  imu_state_.bias.accel_bias = accel_avg - g_inI0;
-  imu_state_.bias.gyro_bias = gyro_avg;
-  imu_state_.g = gravity_;  // gw
-
-  LOG(INFO) << "[InertialInitializer] " << "first imu time : " << imu_datas_.front().timestamp * 1e-9;
-  LOG(INFO) << "[InertialInitializer] " << "imu_datas_ : " << imu_datas_.size();
-  LOG(INFO) << "[InertialInitializer] " << "imu_cache : " << imu_datas_.size();
-  LOG(INFO) << "[InertialInitializer] " << "Accel bias : " << imu_state_.bias.accel_bias.transpose();
-  LOG(INFO) << "[InertialInitializer] " << "Gyro bias : " << imu_state_.bias.gyro_bias.transpose();
-  LOG(INFO) << "[InertialInitializer] " << "gravity in I0 : " << g_inI0.transpose();
   // std::cout << MAGENTA << "[Rwb0]\n" << R_I0toG << RESET << std::endl;
 
   initial_done_ = true;
