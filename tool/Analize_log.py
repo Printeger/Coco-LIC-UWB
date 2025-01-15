@@ -1,25 +1,22 @@
 import re
 import matplotlib.pyplot as plt
 
-
+# I0115 17:15:12.231796 24899 odometry_manager.cpp:199] [Update time]: 23.2281 ms.
 def parse_update_time(line):
     match = re.search(
-        r'\d{2}:\d{2}:(\d+\.\d+).*?\[Update time\]:\s+(\d+\.\d+)', line)
+        r'\d{2}:(\d{2}):(\d+\.\d+).*?\[Update time\]:\s+(\d+\.\d+)', line)
 
-    match = re.search(
-        r'\d{2}:\d{2}:(\d+\.\d+).*?\[Update time\]:\s+(\d+\.\d+)', line)
     if match:
-        time_str = match.group(1)
-        minutes, seconds = map(float, time_str.split(':'))
-        total_seconds = minutes * 60 + seconds
-        time2 = match.group(2)
-        print(total_seconds, time2)
-        return total_seconds, time2
+        time_min = match.group(1)
+        time_sec = match.group(2)
+        time_cost = match.group(3)
+        # print(time_min, time_sec, time_cost)
 
-    # if match:
-    #     time1, time2 = match.group(1), match.group(2)
-    #     # print(time1, time2)
-    #     return time1, time2
+        timestamp = float(time_min) * 60 + float(time_sec)
+        # print(time_min, time_sec, timestamp, time_cost)
+
+        return timestamp, time_cost
+
     return None, None
 
 
@@ -37,21 +34,15 @@ def extract_content(log_file_path, keyword):
             t2_vals.append(float(time2))
             i = i + 1
             cnt.append(i)
-
-    # plt.plot(t1_vals, t2_vals, marker='o')
-    # plt.xlabel("timestamp")
-    # plt.ylabel("time cusumed")
-    # plt.show()
-
-    # plt.plot(cnt, t1_vals, marker='o')
-    # plt.xlabel("timestamp")
-    # plt.ylabel("time cusumed")
-    # plt.show()
-
-    plt.plot(cnt, t2_vals, marker='o')
+            mean_time2 = sum(t2_vals) / len(t2_vals) if t2_vals else 0
+    plt.plot(t1_vals, t2_vals, marker='o')
+    plt.axhline(y=mean_time2, color='r', linestyle='--',
+                label=f'Mean Time: {mean_time2:.2f} ms')
     plt.xlabel("timestamp")
     plt.ylabel("time cusumed")
+    plt.legend()
     plt.show()
+
 
 
 if __name__ == "__main__":
