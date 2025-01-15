@@ -193,10 +193,10 @@ void OdometryManager::RunBag() {
       if (trajectory_->startIdx < 0) {
         trajectory_->startIdx = 0;
       }
-
+      TicToc t_update;
       // fusing lidar-imu-camera to update the trajectory
       SolveLICO();
-
+      LOG(INFO) << "[Update time]: " << t_update.toc() << " ms.";
       // deep copy
       msg_manager_->cur_msgs = NextMsgs();
       msg_manager_->cur_msgs = msg_manager_->next_msgs;
@@ -417,6 +417,11 @@ bool OdometryManager::PrepareTwoSegMsgs(int seg_idx) {
 
   int64_t data_start_time = trajectory_->GetDataStartTime();
   for (auto &data : msg_manager_->lidar_buf_) {
+    // if data.raw_cloud is empty, it means that the data is invalid, continue
+    if (data.raw_cloud->empty()) {
+      ROS_WARN("Invalid lidar data! Jump over.");
+      continue;
+    }
     if (!data.is_time_wrt_traj_start) {
       data.ToRelativeMeasureTime(data_start_time);  //
       msg_manager_->lidar_max_timestamps_[data.lidar_id] =
@@ -578,6 +583,10 @@ bool OdometryManager::PrepareMsgs() {
 
   int64_t data_start_time = trajectory_->GetDataStartTime();
   for (auto &data : msg_manager_->lidar_buf_) {
+    if (data.raw_cloud->empty()) {
+      ROS_WARN("Invalid lidar data! Jump over.");
+      continue;
+    }
     if (!data.is_time_wrt_traj_start) {
       data.ToRelativeMeasureTime(data_start_time);  //
       msg_manager_->lidar_max_timestamps_[data.lidar_id] =

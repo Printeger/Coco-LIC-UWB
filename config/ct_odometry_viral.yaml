@@ -1,12 +1,12 @@
 odometry_mode: 1  # LIO = 0, LICO = 1
 
-log_path: /home/jerry/log
-config_path: /home/jerry/catkin_ws/src/Coco-LIC/config
+log_path: /home/mint/ws_uav_setup/src/Coco-LIC-UWB/log
+config_path: /home/mint/ws_uav_setup/src/Coco-LIC-UWB/config
 lidar_yaml: /viral/lidar.yaml
 imu_yaml: /viral/imu.yaml
 camera_yaml: /viral/camera.yaml
 
-bag_path: /home/jerry/dataset/eee_01.bag  # eee_xx.bag、nya_xx.bag、sbs_xx.bag
+bag_path: /home/mint/dataset/ntu/eee_03.bag  # eee_xx.bag、nya_xx.bag、sbs_xx.bag
 bag_start: 0.
 bag_durr: -1
 

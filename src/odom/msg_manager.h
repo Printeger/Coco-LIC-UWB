@@ -132,14 +132,18 @@ struct LiDARCloudData {
   bool is_time_wrt_traj_start;
 
   void ToRelativeMeasureTime(int64_t traj_start_time) {
+    std::cout << "+++++++ raw_cloud size: " << raw_cloud->size() << std::endl;
     CloudToRelativeMeasureTime(raw_cloud, timestamp, traj_start_time);
     CloudToRelativeMeasureTime(surf_cloud, timestamp, traj_start_time);
     CloudToRelativeMeasureTime(corner_cloud, timestamp, traj_start_time);
     timestamp -= traj_start_time;
 
+    std::cout << "------ raw_cloud size: " << raw_cloud->size() << std::endl;
     max_timestamp = pcl::GetCloudMaxTimeNs(raw_cloud);
 
+    std::cout << "------ surf_cloud" << std::endl;
     int64_t surf_max = pcl::GetCloudMaxTimeNs(surf_cloud);
+    std::cout << "------ corner_cloud" << std::endl;
     int64_t corner_max = pcl::GetCloudMaxTimeNs(corner_cloud);
     if (surf_max > max_timestamp || corner_max > max_timestamp) {
       std::cout << RED << "surf/corner cloud max time wrong!" << RESET

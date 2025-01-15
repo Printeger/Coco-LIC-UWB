@@ -328,7 +328,6 @@ void VelodyneFeatureExtraction::CloudExtraction() {
             p_full_cloud->points[j + i * horizon_scan]);
         // size of extracted cloud
         point_index++;
-        std::cout << "point_index: " << point_index << std::endl;
       }
     }
     end_ring_index[i] = point_index - 1 - 5;
@@ -336,8 +335,6 @@ void VelodyneFeatureExtraction::CloudExtraction() {
 }
 
 void VelodyneFeatureExtraction::CaculateSmoothness() {
-  std::cout << "========== n_scan * horizon_scan: " << n_scan * horizon_scan
-            << " cloud size: " << p_extracted_cloud->points.size() << std::endl;
   for (size_t i = 5; i < p_extracted_cloud->points.size() - 5; i++) {
     float diff_range = point_range_list[i - 5] + point_range_list[i - 4] +
                        point_range_list[i - 3] + point_range_list[i - 2] +

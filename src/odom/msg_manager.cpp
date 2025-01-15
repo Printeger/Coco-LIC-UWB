@@ -581,7 +581,12 @@ void MsgManager::LivoxMsgHandle(
   data.raw_cloud = livox_raw_cloud;
   data.surf_cloud = livox_feature_extraction_->GetSurfaceFeature();
   data.corner_cloud = livox_feature_extraction_->GetCornerFeature();
-  lidar_buf_.push_back(data);
+  if (!data.raw_cloud->empty() && !data.surf_cloud->empty() &&
+      !data.corner_cloud->empty()) {
+    lidar_buf_.push_back(data);
+  } else {
+    ROS_WARN("Livox cloud is empty");
+  }
 
   if (lidar_id != 0) {
     pcl::transformPointCloud(*data.raw_cloud, *data.raw_cloud,

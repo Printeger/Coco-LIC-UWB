@@ -107,6 +107,8 @@ class OdometryViewer {
   ros::Publisher pub_icp_raw_source_cloud_;
   ros::Publisher pub_pose_graph_marker_;
 
+  VPointCloud map_cloud_;
+
  public:
   void SetPublisher(ros::NodeHandle &nh) {
     /// Vicon data
@@ -681,6 +683,13 @@ class OdometryViewer {
         // if (p.x <= 1.0 && p.z >= 0.01) continue;  //good
         source_cloud.push_back(p);
       }
+
+      // map_cloud_ += source_cloud;
+      // if (!map_cloud_.empty()) {
+      //   pcl::io::savePCDFileBinary(
+      //       "/home/mint/ws_uav_setup/src/Coco-LIC-UWB/data/map_cloud.pcd",
+      //       map_cloud_);
+      // }
 
       sensor_msgs::PointCloud2 source_msg;
       pcl::toROSMsg(source_cloud, source_msg);

@@ -53,6 +53,7 @@ add_message_files(
   feature_cloud.msg
   imu_array.msg
   pose_array.msg
+  uwb_array.msg
 )
 
 generate_messages(
