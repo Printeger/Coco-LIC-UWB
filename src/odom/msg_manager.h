@@ -41,14 +41,27 @@
 #include <Eigen/Dense>
 #include <algorithm>
 #include <map>
+#include <unordered_map>
 #include <utils/eigen_utils.hpp>
 #include <vector>
+
+#include "nlink_protocol.h"
+#include "nlink_unpack/nlink_linktrack_anchorframe0.h"
+#include "nlink_unpack/nlink_linktrack_nodeframe0.h"
+#include "nlink_unpack/nlink_linktrack_nodeframe1.h"
+#include "nlink_unpack/nlink_linktrack_nodeframe2.h"
+#include "nlink_unpack/nlink_linktrack_nodeframe3.h"
+#include "nlink_unpack/nlink_linktrack_nodeframe4.h"
+#include "nlink_unpack/nlink_linktrack_nodeframe5.h"
+#include "nlink_unpack/nlink_linktrack_nodeframe6.h"
+#include "nlink_unpack/nlink_linktrack_tagframe0.h"
 
 namespace cocolic {
 
 enum OdometryMode {
   LIO = 0,  //
   LICO = 1,
+  // LICO_UWB = 2,
 };
 
 enum LiDARType {
@@ -66,7 +79,10 @@ struct NextMsgs {
         lidar_corner_cloud(new RTPointCloud),
         if_have_image(false),
         image_timestamp(-1),
-        image(cv::Mat()) {}
+        image(cv::Mat()),
+        UwbData uwb,
+        uwb_timestamp(-1),
+        uwb_position(Eigen::Vector3d::Zero()) {}
 
   void Clear() {
     scan_num = 0;
@@ -110,6 +126,9 @@ struct NextMsgs {
   bool if_have_image;       // if has image in current time interval
   int64_t image_timestamp;  // w.r.t. the start time of the trajectory
   cv::Mat image;            // raw image
+
+  int64_t uwb_timestamp;
+  Eigen::Vector3d uwb_position;
 };
 
 struct LiDARCloudData {
@@ -176,6 +195,18 @@ struct ImageData {
 
   int64_t timestamp;
   cv::Mat image;
+  bool is_time_wrt_traj_start;
+};
+
+struct UwbData {
+  UwbData() : timestamp(0), is_time_wrt_traj_start(false) {}
+
+  int64_t timestamp;
+  int64_t anchor_num;
+  int64_t tag_num;
+  std::unordered_map<int, Eigen::Vector3d> anchor_positions;
+  std::unordered_map<int, double> anchor_distances;
+  Eigen::Vector3d tag_position;
   bool is_time_wrt_traj_start;
 };
 
@@ -270,6 +301,8 @@ class MsgManager {
   void ImageMsgHandle(const sensor_msgs::ImageConstPtr &msg);
   void ImageMsgHandle(const sensor_msgs::CompressedImageConstPtr &msg);
 
+  void UwbMsgHandle(const nlink_parser::LinktrackTagframe0::ConstPtr &uwb_msg);
+
  public:
   bool has_valid_msg_;
 
@@ -292,6 +325,7 @@ class MsgManager {
   std::vector<int64_t> nerf_time_;
   Eigen::aligned_deque<IMUData> imu_buf_;
   std::deque<LiDARCloudData> lidar_buf_;
+  std::deque<UwbData> uwb_buf_;
   std::vector<int64_t> lidar_max_timestamps_;
   int64_t image_max_timestamp_;
 
@@ -306,7 +340,6 @@ class MsgManager {
   // int64_t cur_pose_timestamp_;
 
   bool use_image_;
-
   bool lidar_timestamp_end_;
   bool remove_wrong_time_imu_;
   bool if_normalized_;
@@ -317,7 +350,7 @@ class MsgManager {
   std::vector<LiDARType> lidar_types;
   std::vector<std::string> lidar_topics_;
   std::string image_topic_;
-
+  std::string uwb_topic_;
   // std::string pose_topic_;
 
   std::vector<ExtrinsicParam> EP_LktoI_;
@@ -332,7 +365,7 @@ class MsgManager {
   std::vector<ros::Subscriber> subs_vlp16_;
   std::vector<ros::Subscriber> subs_livox_;
   ros::Subscriber sub_image_;
-
+  ros::Subscriber sub_uwb_;
   VelodyneFeatureExtraction::Ptr velodyne_feature_extraction_;
   LivoxFeatureExtraction::Ptr livox_feature_extraction_;
 

@@ -73,6 +73,11 @@ MsgManager::MsgManager(const YAML::Node &node, ros::NodeHandle &nh)
   }
   image_max_timestamp_ = -1;
 
+  /// uwb topic
+  std::string uwb_yaml = node["uwb_yaml"].as<std::string>();
+  YAML::Node uwb_node = YAML::LoadFile(config_path + uwb_yaml);
+  uwb_topic_ = uwb_node["uwb_topic"].as<std::string>();
+
   /// lidar topic
   std::string lidar_yaml = node["lidar_yaml"].as<std::string>();
   YAML::Node lidar_node = YAML::LoadFile(config_path + lidar_yaml);
@@ -133,6 +138,7 @@ void MsgManager::LoadBag(const YAML::Node &node) {
   for (auto &v : lidar_topics_)  // lidar
     topics.push_back(v);
   // topics.push_back(pose_topic_);
+  topics.push_back(uwb_topic_);
 
   bag_.open(bag_path_, rosbag::bagmode::Read);
 
@@ -191,7 +197,7 @@ void MsgManager::SpinBagOnce() {
 
       auto lidar_msg = m.instantiate<livox_ros_driver2::CustomMsg>();
       CheckLidarMsgTimestamp(msg_time.toSec(), lidar_msg->header.stamp.toSec());
-      LivoxMsgHandle(lidar_msg, idx);
+      LivoxMsgHandle(lidar_msg, idx);  // Extract features & put in LiDAR buffer
     }
   } else if (msg_topic == image_topic_)  // camera
   {
@@ -204,6 +210,9 @@ void MsgManager::SpinBagOnce() {
           m.instantiate<sensor_msgs::Image>();
       ImageMsgHandle(image_msg);
     }
+  } else if (msg_topic == uwb_topic_) {
+    auto uwb_msg = m.instantiate<uwb_ros::UwbMsg>();
+    UwbMsgHandle(uwb_msg);
   }
 
   view_iterator++;
@@ -257,6 +266,13 @@ void MsgManager::RemoveBeginData(int64_t start_time,             // not used
       }
       iter++;
     }
+  }
+  for (auto iter = uwb_buf_.begin(); iter != uwb_buf_.end();) {
+    if (iter->timestamp < relative_start_time) {
+      iter = uwb_buf_.erase(iter);  //
+      continue;
+    }
+    iter++;
   }
 }
 
@@ -670,6 +686,23 @@ void MsgManager::ImageMsgHandle(
   //   cv::resize(image_buf_.back().image, image_buf_.back().image,
   //   cv::Size(612, 512), 0, 0, cv::INTER_LINEAR);
   // }
+}
+
+void MsgManager::UwbMsgHandle(
+    const nlink_parser::LinktrackTagframe0::ConstPtr &uwb_msg) {
+  UwbData temp_uwb_data;
+  int anchor_num = 0;
+  temp_uwb_data.timestamp = uwb_msg->system_time;
+  temp_uwb_data.anchor_positions = uwb_msg->pos_3d;
+  for (size_t i = 0; i < uwb_msg->dis_arr.size() && uwb_msg->dis_arr[i] <= 1e-5;
+       i++) {
+    temp_uwb_data.anchor_distances[i] = uwb_msg->dis_arr[i];  // i 是 anchor ID
+    anchor_num++;
+  }
+  temp_uwb_data.anchor_num = anchor_num;
+  temp_uwb_data.tag_position = uwb_msg->pos_3d;
+
+  uwb_buf_.emplace_back(temp_uwb_data);
 }
 
 }  // namespace cocolic

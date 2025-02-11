@@ -43,6 +43,9 @@ OdometryManager::OdometryManager(const YAML::Node &node, ros::NodeHandle &nh)
   std::string cam_yaml = config_path + node["camera_yaml"].as<std::string>();
   YAML::Node cam_node = YAML::LoadFile(cam_yaml);
 
+  std::string uwb_yaml = config_path + node["uwb_yaml"].as<std::string>();
+  YAML::Node uwb_node = YAML::LoadFile(uwb_yaml);
+
   odometry_mode_ = OdometryMode(node["odometry_mode"].as<int>());
   std::cout << "\n🥥 Odometry Mode: ";
   if (odometry_mode_ == LICO) {
@@ -91,6 +94,11 @@ OdometryManager::OdometryManager(const YAML::Node &node, ros::NodeHandle &nh)
   double cx = cam_node["cam_cx"].as<double>();
   double cy = cam_node["cam_cy"].as<double>();
   K_ << fx, 0.0, cx, 0.0, fy, cy, 0.0, 0.0, 1.0;
+
+  // uwb
+  uwb_handler_ = std::make_shared<UWBHandler>(uwb_node, trajectory_);
+  std::cout << "\n🍺 The number of UWB is " << uwb_node["num_uwb"].as<int>()
+            << "." << std::endl;
 
   // trajectory parameterized by b-spline
   trajectory_manager_ = std::make_shared<TrajectoryManager>(node, trajectory_);
@@ -195,16 +203,19 @@ void OdometryManager::RunBag() {
       }
       TicToc t_update;
       // fusing lidar-imu-camera to update the trajectory
-      SolveLICO();
+      // SolveLICO();
+      SolveLICUO();
       LOG(INFO) << "[Update time]: " << t_update.toc() << " ms.";
       // deep copy
       msg_manager_->cur_msgs = NextMsgs();
       msg_manager_->cur_msgs = msg_manager_->next_msgs;
       msg_manager_->cur_msgs.image = msg_manager_->next_msgs.image.clone();
+      msg_manager_->cur_msgs.uwb = msg_manager_->next_msgs.uwb.clone();
       msg_manager_->next_msgs = NextMsgs();
       msg_manager_->next_msgs = msg_manager_->next_next_msgs;
       msg_manager_->next_msgs.image =
           msg_manager_->next_next_msgs.image.clone();
+      msg_manager_->next_msgs.uwb = msg_manager_->next_next_msgs.uwb.clone();
       msg_manager_->next_next_msgs = NextMsgs();
 
       traj_max_time_ns_cur = traj_max_time_ns_next;
@@ -324,11 +335,11 @@ void OdometryManager::ProcessLICData() {
       odom_viewer_.PublishSubVisualMap(visual_sub_map_debug);
     }
   }
-
-  /// [5] finely optimize trajectory based on prior、lidar、imu、camera
+  /// TODO: Add UWB handler
+  /// TODO: [5] finely optimize trajectory based on prior、lidar、imu、camera
   for (int iter = 0; iter < lidar_iter_; ++iter) {
     lidar_handler_->GetLoamFeatureAssociation();
-
+    /// TODO: Add Ceres residule here!!
     if (process_image) {
       trajectory_manager_->UpdateTrajectoryWithLIC(
           iter, msg.image_timestamp, lidar_handler_->GetPointCorrespondence(),
@@ -434,6 +445,12 @@ bool OdometryManager::PrepareTwoSegMsgs(int seg_idx) {
       msg_manager_->image_max_timestamp_ = data.timestamp;
     }
   }
+  for (auto &data : msg_manager_->uwb_buf_) {
+    if (!data.is_time_wrt_traj_start) {
+      data.ToRelativeMeasureTime(data_start_time);
+      msg_manager_->uwb_max_timestamp_ = data.timestamp;
+    }
+  }
   msg_manager_->RemoveBeginData(data_start_time, 0);
 
   //
@@ -510,12 +527,12 @@ void OdometryManager::UpdateTwoSeg() {
               << aver_a.norm();
     LOG(INFO) << "[var_r_first] " << var_r << " | [var_a_first] " << var_a;
 
-    if (non_uniform_) {
+    if (non_uniform_) {  // Use non-uniform b-spline
       cp_add_num = GetKnotDensity(aver_r.norm(), aver_a.norm());
     }
     LOG(INFO) << "[cp_add_num_first] " << cp_add_num;
     cp_num_vec.push_back(cp_add_num);
-
+    // Add control points based on the IMU data
     int64_t step =
         (traj_max_time_ns_cur - trajectory_->maxTimeNsNURBS()) / cp_add_num;
     LOG(INFO) << "[extend_step_first] " << step;
@@ -560,7 +577,7 @@ void OdometryManager::UpdateTwoSeg() {
               << aver_a.norm();
     LOG(INFO) << "[var_r_second] " << var_r << " | [var_a_second] " << var_a;
 
-    if (non_uniform_) {
+    if (non_uniform_) {  // Add control points based on the IMU data
       cp_add_num = GetKnotDensity(aver_r.norm(), aver_a.norm());
     }
     LOG(INFO) << "[cp_add_num_second] " << cp_add_num;
@@ -599,6 +616,12 @@ bool OdometryManager::PrepareMsgs() {
       msg_manager_->image_max_timestamp_ = data.timestamp;
     }
   }
+  for (auto &data : msg_manager_->uwb_buf_) {
+    if (!data.is_time_wrt_traj_start) {
+      data.ToRelativeMeasureTime(data_start_time);
+      msg_manager_->uwb_max_timestamp_ = data.timestamp;
+    }
+  }
   msg_manager_->RemoveBeginData(data_start_time, 0);
 
   int64_t traj_max_time_ns = traj_max_time_ns_next + t_add_ns_;
@@ -609,7 +632,7 @@ bool OdometryManager::PrepareMsgs() {
                             traj_max_time_ns, data_start_time);
 
   if (have_msg) {
-    while (!msg_manager_->imu_buf_.empty()) {
+    while (!msg_manager_->imu_buf_.empty() || !msg_manager_->uwb_buf_.empty()) {
       trajectory_manager_->AddIMUData(msg_manager_->imu_buf_.front());
       msg_manager_->imu_buf_.pop_front();
     }
@@ -655,12 +678,13 @@ void OdometryManager::UpdateOneSeg() {
               << aver_a.norm();
     LOG(INFO) << "[var_r_new] " << var_r << " | [var_a_new] " << var_a;
 
-    if (non_uniform_) {
+    if (non_uniform_) {  // Use non-uniform b-spline
       cp_add_num = GetKnotDensity(aver_r.norm(), aver_a.norm());
     }
     LOG(INFO) << "[cp_add_num_new] " << cp_add_num;
     cp_num_vec.push_back(cp_add_num);
 
+    // Add control points based on the IMU data
     int64_t step =
         (traj_max_time_ns_next_next - traj_max_time_ns_next) / cp_add_num;
     LOG(INFO) << "[extend_step_new] " << step;

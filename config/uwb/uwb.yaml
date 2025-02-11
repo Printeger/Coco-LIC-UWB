@@ -1,6 +1,5 @@
 uwb_range_topic: /uwb/uwb_data
 
-
 # an array, the IDs of the UWB anchors (the last ID is the moving module to be localized)
 nodesId: [100, 101, 102, 103, 200]
 # an array, the postions (x, y, z) of the UWB anchors (the last three elements, is the initial postion of the moving module to be localized)

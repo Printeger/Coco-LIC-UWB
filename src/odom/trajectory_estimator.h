@@ -161,10 +161,14 @@ namespace cocolic
                                    double *accel_bias, double *gravity,
                                    const Eigen::Matrix<double, 6, 1> &info_vec,
                                    bool marg_this_factor = false);
+                                   
     void AddIMUMeasurementAnalyticNURBS(const IMUData &imu_data, double *gyro_bias,
                                         double *accel_bias, double *gravity,
                                         const Eigen::Matrix<double, 6, 1> &info_vec,
                                         bool marg_this_factor = false);
+
+    void AddUWBMeasurementAnalyticNURBS(const Eigen::Vector3d &uwb_measurement, const Eigen::Matrix3d &K,
+                                        double uwb_weight);
 
     void AddBiasFactor(double *bias_gyr_i, double *bias_gyr_j, double *bias_acc_i,
                        double *bias_acc_j, double dt,
