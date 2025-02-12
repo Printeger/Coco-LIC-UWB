@@ -335,6 +335,8 @@ class MsgManager {
   int64_t cur_imu_timestamp_;
   int64_t cur_pose_timestamp_;
 
+  std::unordered_map<int, Eigen::Vector3d> anchor_id_positions;
+
  private:
   // int64_t cur_imu_timestamp_;
   // int64_t cur_pose_timestamp_;

@@ -32,7 +32,9 @@ MsgManager::MsgManager(const YAML::Node &node, ros::NodeHandle &nh)
       lidar_timestamp_end_(false),
       remove_wrong_time_imu_(false),
       if_normalized_(false),
-      image_topic_("") {
+      image_topic_(""),
+      uwb_topic_(""),
+      anchor_id_positions() {
   std::string config_path = node["config_path"].as<std::string>();
 
   OdometryMode odom_mode = OdometryMode(node["odometry_mode"].as<int>());
@@ -76,7 +78,20 @@ MsgManager::MsgManager(const YAML::Node &node, ros::NodeHandle &nh)
   /// uwb topic
   std::string uwb_yaml = node["uwb_yaml"].as<std::string>();
   YAML::Node uwb_node = YAML::LoadFile(config_path + uwb_yaml);
-  uwb_topic_ = uwb_node["uwb_topic"].as<std::string>();
+  uwb_topic_ = uwb_node["uwb_range_topic"].as<std::string>();
+
+  // 读取并保存 anchor ID 和位置的对应关系
+  std::vector<int> anchor_ids = uwb_node["AnchorId"].as<std::vector<int>>();
+  std::vector<double> anchor_positions =
+      uwb_node["AnchorPos"].as<std::vector<double>>();
+
+  // 将ID和位置一一对应存入map中
+  for (size_t i = 0; i < anchor_ids.size() - 1;
+       i++) {  // -1是因为最后一个是移动模块
+    Eigen::Vector3d pos(anchor_positions[i * 3], anchor_positions[i * 3 + 1],
+                        anchor_positions[i * 3 + 2]);
+    anchor_id_positions[anchor_ids[i]] = pos;
+  }
 
   /// lidar topic
   std::string lidar_yaml = node["lidar_yaml"].as<std::string>();
@@ -211,7 +226,7 @@ void MsgManager::SpinBagOnce() {
       ImageMsgHandle(image_msg);
     }
   } else if (msg_topic == uwb_topic_) {
-    auto uwb_msg = m.instantiate<uwb_ros::UwbMsg>();
+    auto uwb_msg = m.instantiate<nlink_parser::LinktrackTagframe0>();
     UwbMsgHandle(uwb_msg);
   }
 
@@ -691,12 +706,16 @@ void MsgManager::ImageMsgHandle(
 void MsgManager::UwbMsgHandle(
     const nlink_parser::LinktrackTagframe0::ConstPtr &uwb_msg) {
   UwbData temp_uwb_data;
-  int anchor_num = 0;
   temp_uwb_data.timestamp = uwb_msg->system_time;
-  temp_uwb_data.anchor_positions = uwb_msg->pos_3d;
-  for (size_t i = 0; i < uwb_msg->dis_arr.size() && uwb_msg->dis_arr[i] <= 1e-5;
+
+  // 为每个anchor设置其固定位置
+  temp_uwb_data.anchor_positions = anchor_id_positions;
+
+  // 处理距离数据
+  int anchor_num = 0;
+  for (size_t i = 0; i < uwb_msg->dis_arr.size() && uwb_msg->dis_arr[i] > 1e-5;
        i++) {
-    temp_uwb_data.anchor_distances[i] = uwb_msg->dis_arr[i];  // i 是 anchor ID
+    temp_uwb_data.anchor_distances[i] = uwb_msg->dis_arr[i];
     anchor_num++;
   }
   temp_uwb_data.anchor_num = anchor_num;

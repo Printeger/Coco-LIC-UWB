@@ -1,8 +1,8 @@
 uwb_range_topic: /uwb/uwb_data
 
 # an array, the IDs of the UWB anchors (the last ID is the moving module to be localized)
-nodesId: [100, 101, 102, 103, 200]
+AnchorId: [100, 101, 102, 103, 200]
 # an array, the postions (x, y, z) of the UWB anchors (the last three elements, is the initial postion of the moving module to be localized)
-nodesPos: [3, -3, 0.53, 3, 3, 1.95, -3, 3, 0.54, -3, -3, 1.98, 0, 0, 1.0]
+AnchorPos: [3, -3, 0.53, 3, 3, 1.95, -3, 3, 0.54, -3, -3, 1.98, 0, 0, 1.0]
 # the antenna offset on the moving module, there may be multiple antennas. DONOT SET IT IF THERE IS NO OFFSET  
 antennaOffset: [-0.2, 0, 0, 0.2, 0, 0, 0, -0.1]

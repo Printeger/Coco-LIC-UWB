@@ -248,6 +248,24 @@ void OdometryManager::SolveLICO() {
                                             msg.lidar_max_timestamp);
 }
 
+void OdometryManager::SolveLICUO() {
+  msg_manager_->LogInfo();
+  if (msg_manager_->cur_msgs.lidar_timestamp < 0) {
+    LOG(INFO) << "CANT SolveLICUO!";
+  }
+
+  // lic optimization with uwb
+  ProcessLICUOData();
+
+  // prior update
+  trajectory_manager_->UpdateLICPrior(lidar_handler_->GetPointCorrespondence());
+
+  // remove old imu data
+  auto &msg = msg_manager_->cur_msgs;
+  trajectory_manager_->UpdateLiDARAttribute(msg.lidar_timestamp,
+                                            msg.lidar_max_timestamp);
+}
+
 void OdometryManager::ProcessLICData() {
   auto &msg =
       msg_manager_->cur_msgs;  // fake points with timestamp -1 exist up to now
@@ -413,6 +431,203 @@ void OdometryManager::ProcessLICData() {
   }
 
   /// [8] visualize tf in rviz
+  auto pose = trajectory_->GetLidarPoseNURBS(msg.lidar_timestamp);
+  auto pose_debug = trajectory_->GetCameraPoseNURBS(msg.lidar_timestamp);
+  odom_viewer_.PublishTF(pose.unit_quaternion(), pose.translation(), "lidar",
+                         "map");
+  odom_viewer_.PublishTF(pose_debug.unit_quaternion(), pose_debug.translation(),
+                         "camera", "map");
+  odom_viewer_.PublishTF(trajectory_manager_->GetGlobalFrame(),
+                         Eigen::Vector3d::Zero(), "map", "global");
+}
+
+void OdometryManager::ProcessLICUOData() {
+  auto &msg = msg_manager_->cur_msgs;
+  msg.CheckData();
+
+  bool process_image =
+      msg.if_have_image && msg.image_timestamp > t_begin_add_cam_;
+  bool process_uwb = msg.if_have_uwb;
+
+  if (process_image && process_uwb) {
+    LOG(INFO) << "Process " << msg.scan_num << " scans in ["
+              << msg.lidar_timestamp * NS_TO_S << ", "
+              << msg.lidar_max_timestamp * NS_TO_S << "]"
+              << "; image_time: " << msg.image_timestamp * NS_TO_S
+              << "; uwb_time: " << msg.uwb_timestamp * NS_TO_S;
+  } else if (process_image) {
+    LOG(INFO) << "Process " << msg.scan_num << " scans in ["
+              << msg.lidar_timestamp * NS_TO_S << ", "
+              << msg.lidar_max_timestamp * NS_TO_S << "]"
+              << "; image_time: " << msg.image_timestamp * NS_TO_S;
+  } else if (process_uwb) {
+    LOG(INFO) << "Process " << msg.scan_num << " scans in ["
+              << msg.lidar_timestamp * NS_TO_S << ", "
+              << msg.lidar_max_timestamp * NS_TO_S << "]"
+              << "; uwb_time: " << msg.uwb_timestamp * NS_TO_S;
+  } else {
+    LOG(INFO) << "Process " << msg.scan_num << " scans in ["
+              << msg.lidar_timestamp * NS_TO_S << ", "
+              << msg.lidar_max_timestamp * NS_TO_S << "]";
+  }
+
+  /// [1] transform the format of lidar pointcloud ->
+  /// feature_cur_、feature_cur_ds_
+  lidar_handler_->FeatureCloudHandler(
+      msg.lidar_timestamp, msg.lidar_max_timestamp, msg.lidar_corner_cloud,
+      msg.lidar_surf_cloud, msg.lidar_raw_cloud);
+
+  /// [2] coarsely optimize trajectory based on prior、imu (served as good
+  /// initial values)
+  trajectory_manager_->PredictTrajectory(
+      msg.lidar_timestamp, msg.lidar_max_timestamp, traj_max_time_ns_cur,
+      cp_add_num_cur, non_uniform_);
+
+  /// [3] update lidar local map
+  int active_idx = trajectory_->numKnots() - 1 - cp_add_num_cur - 2;
+  trajectory_->SetActiveTime(trajectory_->knts[active_idx]);
+  lidar_handler_->UpdateLidarSubMap();
+
+  /// [4] update visual local map (tracking map points for the current image
+  /// frame)
+  v_points_.clear();
+  px_obss_.clear();
+  if (process_image) {
+    SE3d Twc = trajectory_->GetCameraPoseNURBS(msg.image_timestamp);
+    camera_handler_->UpdateVisualSubMap(
+        msg.image, msg.image_timestamp * NS_TO_S, Twc.unit_quaternion(),
+        Twc.translation());
+
+    auto &map_rgb_pts_in_last_frame_pos =
+        camera_handler_->op_track.m_map_rgb_pts_in_last_frame_pos;
+    for (auto it = map_rgb_pts_in_last_frame_pos.begin();
+         it != map_rgb_pts_in_last_frame_pos.end(); it++) {
+      RGB_pts *rgb_pt = ((RGB_pts *)it->first);
+      v_points_.push_back(Eigen::Vector3d(rgb_pt->get_pos()(0, 0),
+                                          rgb_pt->get_pos()(1, 0),
+                                          rgb_pt->get_pos()(2, 0)));
+      px_obss_.push_back(Eigen::Vector2d(it->second.x, it->second.y));
+    }
+
+    // Visualization code for camera tracking (same as ProcessLICData)
+    if (odom_viewer_.pub_track_img_.getNumSubscribers() != 0 ||
+        odom_viewer_.pub_sub_visual_map_.getNumSubscribers() != 0) {
+      cv::Mat img_debug = camera_handler_->img_pose_->m_img.clone();
+      VPointCloud visual_sub_map_debug;  // optical flow + ransac *2 -> 3d
+                                         // association（red）
+      visual_sub_map_debug.clear();
+
+      for (auto it = map_rgb_pts_in_last_frame_pos.begin();
+           it != map_rgb_pts_in_last_frame_pos.end(); it++) {
+        RGB_pts *rgb_pt = ((RGB_pts *)it->first);
+        cv::circle(img_debug, it->second, 2, cv::Scalar(0, 255, 0), -1,
+                   8);  // optical flow + ransac *2 -> 2d association（green）
+        VPoint temp_map;
+        temp_map.x = rgb_pt->get_pos()(0, 0);
+        temp_map.y = rgb_pt->get_pos()(1, 0);
+        temp_map.z = rgb_pt->get_pos()(2, 0);
+        temp_map.intensity = 0.;
+        visual_sub_map_debug.push_back(temp_map);
+      }
+
+      cv_bridge::CvImage out_msg;
+      out_msg.header.stamp = ros::Time::now();
+      out_msg.encoding = sensor_msgs::image_encodings::BGR8;
+      out_msg.image = img_debug;
+      odom_viewer_.PublishTrackImg(out_msg.toImageMsg());
+      odom_viewer_.PublishSubVisualMap(visual_sub_map_debug);
+    }
+  }
+
+  /// [5] update UWB measurements
+  if (process_uwb) {
+    uwb_handler_->UpdateUWBMeasurements(msg.uwb);
+  }
+
+  /// [6] finely optimize trajectory based on prior、lidar、imu、camera、uwb
+  for (int iter = 0; iter < lidar_iter_; ++iter) {
+    lidar_handler_->GetLoamFeatureAssociation();
+
+    if (process_image && process_uwb) {
+      trajectory_manager_->UpdateTrajectoryWithLICUO(
+          iter, msg.image_timestamp, msg.uwb_timestamp,
+          lidar_handler_->GetPointCorrespondence(), v_points_, px_obss_,
+          uwb_handler_->GetUWBMeasurements(), 8);
+    } else if (process_image) {
+      trajectory_manager_->UpdateTrajectoryWithLIC(
+          iter, msg.image_timestamp, lidar_handler_->GetPointCorrespondence(),
+          v_points_, px_obss_, 8);
+    } else {
+      trajectory_manager_->UpdateTrajectoryWithLIC(
+          iter, msg.image_timestamp, lidar_handler_->GetPointCorrespondence(),
+          {}, {}, 8);
+      trajectory_manager_->SetProcessCurImg(false);
+    }
+  }
+  PublishCloudAndTrajectory();
+
+  /// [7] update visual global map
+  PosCloud::Ptr cloud_undistort = PosCloud::Ptr(new PosCloud);
+  auto latest_feature_before_active_time = lidar_handler_->GetFeatureCurrent();
+  PosCloud::Ptr cloud_distort =
+      latest_feature_before_active_time.surface_features;
+  if (cloud_distort->size() != 0) {
+    trajectory_->UndistortScanInG(*cloud_distort,
+                                  latest_feature_before_active_time.timestamp,
+                                  *cloud_undistort);
+    camera_handler_->UpdateVisualGlobalMap(
+        cloud_undistort, latest_feature_before_active_time.time_max * NS_TO_S);
+  }
+
+  /// [8] associate new map points for the current image frame
+  if (process_image) {
+    SE3d Twc = trajectory_->GetCameraPoseNURBS(msg.image_timestamp);
+    camera_handler_->AssociateNewPointsToCurrentImg(Twc.unit_quaternion(),
+                                                    Twc.translation());
+
+    // Visualization code for undistorted scan and points (same as
+    // ProcessLICData)
+    if (odom_viewer_.pub_undistort_scan_in_cur_img_.getNumSubscribers() != 0) {
+      cv::Mat img_debug = camera_handler_->img_pose_->m_img.clone();
+      {
+        for (int i = 0; i < cloud_undistort->points.size(); i++) {
+          auto pt = cloud_undistort->points[i];
+          Eigen::Vector3d pt_e(pt.x, pt.y, pt.z);
+          Eigen::Matrix3d Rwc = Twc.unit_quaternion().toRotationMatrix();
+          Eigen::Vector3d twc = Twc.translation();
+          Eigen::Vector3d pt_cam =
+              Rwc.transpose() * pt_e - Rwc.transpose() * twc;
+          double X = pt_cam.x(), Y = pt_cam.y(), Z = pt_cam.z();
+          cv::Point2f pix(K_(0, 0) * X / Z + K_(0, 2),
+                          K_(1, 1) * Y / Z + K_(1, 2));
+          cv::circle(img_debug, pix, 2, cv::Scalar(0, 0, 255), -1, 8);
+        }
+        cv_bridge::CvImage out_msg;
+        out_msg.header.stamp = ros::Time::now();
+        out_msg.encoding = sensor_msgs::image_encodings::BGR8;
+        out_msg.image = img_debug;
+        odom_viewer_.PublishUndistortScanInCurImg(out_msg.toImageMsg());
+      }
+    }
+
+    if (odom_viewer_.pub_old_and_new_added_points_in_cur_img_
+            .getNumSubscribers() != 0) {
+      cv::Mat img_debug = camera_handler_->img_pose_->m_img.clone();
+      auto obss = camera_handler_->op_track.m_map_rgb_pts_in_last_frame_pos;
+      for (auto it = obss.begin(); it != obss.end(); it++) {
+        cv::Point2f pix = it->second;
+        cv::circle(img_debug, pix, 2, cv::Scalar(0, 255, 0), -1, 8);
+      }
+
+      cv_bridge::CvImage out_msg;
+      out_msg.header.stamp = ros::Time::now();
+      out_msg.encoding = sensor_msgs::image_encodings::BGR8;
+      out_msg.image = img_debug;
+      odom_viewer_.PublishOldAndNewAddedPointsInCurImg(out_msg.toImageMsg());
+    }
+  }
+
+  /// [9] visualize tf in rviz
   auto pose = trajectory_->GetLidarPoseNURBS(msg.lidar_timestamp);
   auto pose_debug = trajectory_->GetCameraPoseNURBS(msg.lidar_timestamp);
   odom_viewer_.PublishTF(pose.unit_quaternion(), pose.translation(), "lidar",
