@@ -1,6 +1,6 @@
 /*
- * Coco-LIC: Coco-LIC: Continuous-Time Tightly-Coupled LiDAR-Inertial-Camera Odometry using Non-Uniform B-spline
- * Copyright (C) 2023 Xiaolei Lang
+ * Coco-LIC: Coco-LIC: Continuous-Time Tightly-Coupled LiDAR-Inertial-Camera
+ * Odometry using Non-Uniform B-spline Copyright (C) 2023 Xiaolei Lang
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,6 +21,7 @@
 // #include <yaml-cpp/yaml.h>
 #include <glog/logging.h>
 #include <utils/yaml_utils.h>
+
 #include <Eigen/Core>
 #include <cmath>
 
@@ -110,6 +111,7 @@ struct OptWeight {
 
   double lidar_weight;
   double image_weight;
+  double uwb_weight;
 
   OptWeight() {}
 
@@ -121,14 +123,11 @@ struct OptWeight {
     Eigen::Vector3d one3d = Eigen::Vector3d::Ones();
 
     /////////////////////////////////////////////////
-    imu_info_vec.block<3, 1>(0, 0) =
-        1.0 / imu_noise.sigma_w * one3d;
-    imu_info_vec.block<3, 1>(3, 0) =
-        1.0 / imu_noise.sigma_a * one3d;
+    imu_info_vec.block<3, 1>(0, 0) = 1.0 / imu_noise.sigma_w * one3d;
+    imu_info_vec.block<3, 1>(3, 0) = 1.0 / imu_noise.sigma_a * one3d;
     imu_noise.sigma_wb_discrete = imu_noise.sigma_wb;
     imu_noise.sigma_ab_discrete = imu_noise.sigma_ab;
     /////////////////////////////////////////////////
-    
 
     rot_weight = imu_noise.rot_weight;
     pos_weight = imu_noise.pos_weight;

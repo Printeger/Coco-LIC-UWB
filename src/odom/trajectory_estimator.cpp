@@ -276,7 +276,7 @@ void TrajectoryEstimator::AddPhotometricMeasurementAnalyticNURBS(
 }
 
 void TrajectoryEstimator::AddUWBMeasurementAnalyticNURBS(
-    const Eigen::Vector3d &uwb_measurement, const Eigen::Matrix3d &K,
+    const UwbData &uwb_measurement, const Eigen::Matrix3d &K,
     double uwb_weight) {
   int64_t time_ns = uwb_measurement.timestamp;
   std::pair<int, double> su;  // i u
@@ -284,13 +284,13 @@ void TrajectoryEstimator::AddUWBMeasurementAnalyticNURBS(
 
   Eigen::Matrix4d blending_matrix = trajectory_->blending_mats[su.first - 3];
   Eigen::Matrix4d cumulative_blending_matrix =
-        trajectory_->cumu_blending_mats[su.first - 3];  
+      trajectory_->cumu_blending_mats[su.first - 3];
 
   using Functor = analytic_derivative::UWBFactorNURBS;
-  ceres::CostFunction *cost_function = new Functor(
-      time_ns, su, blending_matrix, cumulative_blending_matrix, uwb_measurement,
-      K, uwb_weight); 
-      
+  ceres::CostFunction *cost_function =
+      new Functor(time_ns, su, blending_matrix, cumulative_blending_matrix,
+                  uwb_measurement, K, uwb_weight);
+
   std::vector<double *> vec;
   AddControlPointsNURBS(su.first - 3, vec);
   AddControlPointsNURBS(su.first - 3, vec, true);
@@ -300,8 +300,7 @@ void TrajectoryEstimator::AddUWBMeasurementAnalyticNURBS(
 
   if (options.show_residual_summary) {
     residual_summary_.AddResidualInfo(RType_UWB, cost_function, vec);
-  } 
-  
+  }
 }
 
 void TrajectoryEstimator::AddBiasFactor(

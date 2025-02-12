@@ -28,6 +28,7 @@ find_package(catkin REQUIRED COMPONENTS
   message_generation
   image_transport
   livox_ros_driver2
+  nlink_parser
 )
 
 # FIND_PACKAGE(Boost REQUIRED COMPONENTS thread)
@@ -53,7 +54,7 @@ add_message_files(
   feature_cloud.msg
   imu_array.msg
   pose_array.msg
-  uwb_array.msg
+  # uwb_array.msg
 )
 
 generate_messages(

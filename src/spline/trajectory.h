@@ -1,6 +1,6 @@
 /*
- * Coco-LIC: Coco-LIC: Continuous-Time Tightly-Coupled LiDAR-Inertial-Camera Odometry using Non-Uniform B-spline
- * Copyright (C) 2023 Xiaolei Lang
+ * Coco-LIC: Coco-LIC: Continuous-Time Tightly-Coupled LiDAR-Inertial-Camera
+ * Odometry using Non-Uniform B-spline Copyright (C) 2023 Xiaolei Lang
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,10 +19,12 @@
 #pragma once
 
 #include <glog/logging.h>
+
+#include <unordered_map>
+
 #include "../utils/mypcl_cloud_type.h"
 #include "../utils/parameter_struct.h"
 #include "se3_spline.h"
-#include <unordered_map>
 
 namespace cocolic {
 
@@ -39,12 +41,13 @@ class Trajectory : public Se3Spline<SplineOrder, double> {
  public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
-  typedef std::shared_ptr<Trajectory> Ptr;
+  // typedef std::shared_ptr<Trajectory> Ptr;
+  using Ptr = std::shared_ptr<Trajectory>;
 
   static constexpr double NS_TO_S = 1e-9;  ///< Nanosecond to second conversion
   static constexpr double S_TO_NS = 1e9;   ///< Second to nanosecond conversion
 
-  std::unordered_map<int, int> intensity_map;  //knot_idx, intensity
+  std::unordered_map<int, int> intensity_map;  // knot_idx, intensity
 
   Trajectory(double time_interval, double start_time = 0)
       : Se3Spline<SplineOrder, double>(time_interval * S_TO_NS,
@@ -55,7 +58,7 @@ class Trajectory : public Se3Spline<SplineOrder, double> {
         forced_fixed_time_(-1) {
     this->extendKnotsTo(SO3d(Eigen::Quaterniond::Identity()),
                         Eigen::Vector3d(0, 0, 0));
-    
+
     intensity_map[0] = 400;
     intensity_map[1] = 400;
     intensity_map[2] = 400;
@@ -65,13 +68,9 @@ class Trajectory : public Se3Spline<SplineOrder, double> {
     EP_StoI_[IMUSensor] = EP_StoI;
   }
 
-  void AddKnt(double time) {
-    knts.push_back(time * S_TO_NS);
-  }
+  void AddKnt(double time) { knts.push_back(time * S_TO_NS); }
 
-  void AddKntNs(int64_t time) {
-    knts.push_back(time);
-  }
+  void AddKntNs(int64_t time) { knts.push_back(time); }
 
   void SetSensorExtrinsics(const SensorType type,
                            const ExtrinsicParam& EP_StoI) {
@@ -129,9 +128,7 @@ class Trajectory : public Se3Spline<SplineOrder, double> {
   //   return NS_TO_S * this->maxTimeNsNURBS();
   // }
 
-  double maxTimeNURBS() const {
-    return NS_TO_S * this->maxTimeNsNURBS();
-  }
+  double maxTimeNURBS() const { return NS_TO_S * this->maxTimeNsNURBS(); }
 
   void GetIMUState(double time, IMUState& imu_state) const;
 
@@ -186,7 +183,8 @@ class Trajectory : public Se3Spline<SplineOrder, double> {
   }
 
   Eigen::Vector3d GetTransVelWorldNURBS(const std::pair<int, double> su,
-    double delta_t, const Eigen::Matrix4d blend_mat) const {
+                                        double delta_t,
+                                        const Eigen::Matrix4d blend_mat) const {
     return this->transVelWorldNURBS(su, delta_t, blend_mat);
   }
 
@@ -214,7 +212,8 @@ class Trajectory : public Se3Spline<SplineOrder, double> {
   void UndistortScan(const PosCloud& scan_raw, const int64_t target_timestamp,
                      PosCloud& scan_in_target) const;
 
-  void UndistortScanInG(const PosCloud& scan_raw, const int64_t scan_raw_timestamp,
+  void UndistortScanInG(const PosCloud& scan_raw,
+                        const int64_t scan_raw_timestamp,
                         PosCloud& scan_in_target) const;
 
   void SetForcedFixedTime(double time) {
@@ -228,7 +227,8 @@ class Trajectory : public Se3Spline<SplineOrder, double> {
 
   void SetActiveTime(int64_t time) { active_time_ns = time; }
 
-  void ToTUMTxt(std::string traj_path, int64_t maxtime, bool is_evo_viral, double dt = 0.1);
+  void ToTUMTxt(std::string traj_path, int64_t maxtime, bool is_evo_viral,
+                double dt = 0.1);
 
   void SetDataStartTime(int64_t time) { data_start_time_ = time; }
 
@@ -254,24 +254,25 @@ class Trajectory : public Se3Spline<SplineOrder, double> {
 
   SE3d GetSensorPose(const double timestamp,
                      const ExtrinsicParam& EP_StoI) const;
-  
-  SE3d GetSensorPoseNURBS(const int64_t timestamp,
-                     const ExtrinsicParam& EP_StoI) const;
 
   SE3d GetSensorPoseNURBS(const int64_t timestamp,
-                     const ExtrinsicParam& EP_StoI, const int start_idx) const;
+                          const ExtrinsicParam& EP_StoI) const;
+
+  SE3d GetSensorPoseNURBS(const int64_t timestamp,
+                          const ExtrinsicParam& EP_StoI,
+                          const int start_idx) const;
 
  private:
-  int64_t data_start_time_;    
-  // double active_time_;       
-  double forced_fixed_time_; 
+  int64_t data_start_time_;
+  // double active_time_;
+  double forced_fixed_time_;
 
   int64_t max_time_ns;
   int64_t active_time_ns;
 
   std::map<SensorType, ExtrinsicParam> EP_StoI_;
 
-  friend TrajectoryManager;  
+  friend TrajectoryManager;
 };
 
 }  // namespace cocolic

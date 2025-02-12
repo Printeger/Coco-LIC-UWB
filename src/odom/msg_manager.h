@@ -45,7 +45,6 @@
 #include <utils/eigen_utils.hpp>
 #include <vector>
 
-#include "nlink_protocol.h"
 #include "nlink_unpack/nlink_linktrack_anchorframe0.h"
 #include "nlink_unpack/nlink_linktrack_nodeframe0.h"
 #include "nlink_unpack/nlink_linktrack_nodeframe1.h"
