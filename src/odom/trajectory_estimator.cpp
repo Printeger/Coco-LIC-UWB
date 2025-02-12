@@ -146,7 +146,6 @@ void TrajectoryEstimator::AddMarginalizationFactor(
   }
 }
 
-// IMU factor
 void TrajectoryEstimator::AddIMUMeasurementAnalyticNURBS(
     const IMUData &imu_data, double *gyro_bias, double *accel_bias,
     double *gravity, const Eigen::Matrix<double, 6, 1> &info_vec,
@@ -191,7 +190,6 @@ void TrajectoryEstimator::AddIMUMeasurementAnalyticNURBS(
   problem_->AddResidualBlock(cost_function, loss_function, vec);
 }
 
-// LOAM factor
 void TrajectoryEstimator::AddLoamMeasurementAnalyticNURBS(
     const PointCorrespondence &pc, const SO3d &S_GtoM,
     const Eigen::Vector3d &p_GinM, const SO3d &S_LtoI,
@@ -273,34 +271,6 @@ void TrajectoryEstimator::AddPhotometricMeasurementAnalyticNURBS(
 
   ceres::LossFunction *loss_function = NULL;
   problem_->AddResidualBlock(cost_function, loss_function, vec);
-}
-
-void TrajectoryEstimator::AddUWBMeasurementAnalyticNURBS(
-    const UwbData &uwb_measurement, const Eigen::Matrix3d &K,
-    double uwb_weight) {
-  int64_t time_ns = uwb_measurement.timestamp;
-  std::pair<int, double> su;  // i u
-  trajectory_->GetIdxT(time_ns, su);
-
-  Eigen::Matrix4d blending_matrix = trajectory_->blending_mats[su.first - 3];
-  Eigen::Matrix4d cumulative_blending_matrix =
-      trajectory_->cumu_blending_mats[su.first - 3];
-
-  using Functor = analytic_derivative::UWBFactorNURBS;
-  ceres::CostFunction *cost_function =
-      new Functor(time_ns, su, blending_matrix, cumulative_blending_matrix,
-                  uwb_measurement, K, uwb_weight);
-
-  std::vector<double *> vec;
-  AddControlPointsNURBS(su.first - 3, vec);
-  AddControlPointsNURBS(su.first - 3, vec, true);
-
-  ceres::LossFunction *loss_function = NULL;
-  problem_->AddResidualBlock(cost_function, loss_function, vec);
-
-  if (options.show_residual_summary) {
-    residual_summary_.AddResidualInfo(RType_UWB, cost_function, vec);
-  }
 }
 
 void TrajectoryEstimator::AddBiasFactor(

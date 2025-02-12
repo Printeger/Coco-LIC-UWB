@@ -1,6 +1,6 @@
 /*
- * Coco-LIC: Coco-LIC: Continuous-Time Tightly-Coupled LiDAR-Inertial-Camera
- * Odometry using Non-Uniform B-spline Copyright (C) 2023 Xiaolei Lang
+ * Coco-LIC: Coco-LIC: Continuous-Time Tightly-Coupled LiDAR-Inertial-Camera Odometry using Non-Uniform B-spline
+ * Copyright (C) 2023 Xiaolei Lang
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -144,10 +144,10 @@ class IMUFactor : public ceres::CostFunction, SplitSpineView {
         spline_segment_meta_(spline_segment_meta),
 
         info_vec_(info_vec) {
-    ///
+    /// 
     set_num_residuals(6);
 
-    ///
+    /// 
     size_t knot_num = this->spline_segment_meta_.NumParameters();
     for (size_t i = 0; i < knot_num; ++i) {
       mutable_parameter_block_sizes()->push_back(4);
@@ -313,11 +313,11 @@ class IMUFactorNURBS : public ceres::CostFunction, SplitSpineView {
   using Mat3d = Eigen::Matrix<double, 3, 3>;
   using SO3d = Sophus::SO3<double>;
 
-  IMUFactorNURBS(int64_t time_ns, const IMUData& imu_data, const Vec3d& gravity,
-                 const Vec6d& info_vec, const std::vector<int64_t>& knts,
-                 const std::pair<int, double>& su,
-                 const Eigen::Matrix4d& blending_matrix,
-                 const Eigen::Matrix4d& cumulative_blending_matrix)
+  IMUFactorNURBS(int64_t time_ns, const IMUData& imu_data,
+            const Vec3d& gravity, const Vec6d& info_vec,
+            const std::vector<int64_t>& knts, const std::pair<int, double>& su,
+            const Eigen::Matrix4d& blending_matrix,
+            const Eigen::Matrix4d& cumulative_blending_matrix)
       : time_ns_(time_ns),
         imu_data_(imu_data),
         gravity_(gravity),
@@ -326,9 +326,9 @@ class IMUFactorNURBS : public ceres::CostFunction, SplitSpineView {
         su_(su),
         blending_matrix_(blending_matrix),
         cumulative_blending_matrix_(cumulative_blending_matrix) {
-    ///
+    /// 
     set_num_residuals(6);
-    ///
+    /// 
     size_t knot_num = 4;
     for (size_t i = 0; i < knot_num; ++i) {
       mutable_parameter_block_sizes()->push_back(4);
@@ -342,19 +342,23 @@ class IMUFactorNURBS : public ceres::CostFunction, SplitSpineView {
 
   virtual bool Evaluate(double const* const* parameters, double* residuals,
                         double** jacobians) const {
-    typename SO3View::JacobianStruct J_rot_w;  // gyro residual w.r.t. R
-    typename SO3View::JacobianStruct J_rot_a;  // accel residual w.r.t. R
-    typename R3View::JacobianStruct J_pos;     // accel w.r.t. P
+    typename SO3View::JacobianStruct J_rot_w;  //gyro residual w.r.t. R
+    typename SO3View::JacobianStruct J_rot_a;  //accel residual w.r.t. R
+    typename R3View::JacobianStruct J_pos;  //accel w.r.t. P
     typename SplitView::SplineIMUData spline_data;
 
     if (jacobians) {
-      spline_data = SplitView::EvaluateNURBS(
-          time_ns_, parameters, gravity_, knts_, su_, blending_matrix_,
-          cumulative_blending_matrix_, &J_rot_w, &J_rot_a, &J_pos);
-    } else {
-      spline_data = SplitView::EvaluateNURBS(time_ns_, parameters, gravity_,
-                                             knts_, su_, blending_matrix_,
-                                             cumulative_blending_matrix_);
+      spline_data = SplitView::EvaluateNURBS(time_ns_,
+                                                                                           parameters, gravity_, knts_, su_,
+                                                                                           blending_matrix_,
+                                                                                           cumulative_blending_matrix_,
+                                                                                           &J_rot_w, &J_rot_a, &J_pos);
+    }
+    else {
+      spline_data = SplitView::EvaluateNURBS(time_ns_,
+                                                                                           parameters, gravity_, knts_, su_,
+                                                                                           blending_matrix_,
+                                                                                           cumulative_blending_matrix_);
     }
 
     size_t knot_num = 4;
@@ -455,9 +459,9 @@ class IMUPoseFactor : public ceres::CostFunction {
         pose_data_(pose_data),
         spline_segment_meta_(spline_segment_meta),
         info_vec_(info_vec) {
-    ///
+    /// 
     set_num_residuals(6);
-    ///
+    /// 
     size_t kont_num = this->spline_segment_meta_.NumParameters();
     for (size_t i = 0; i < kont_num; ++i) {
       mutable_parameter_block_sizes()->push_back(4);
@@ -521,7 +525,7 @@ class IMUPoseFactor : public ceres::CostFunction {
       Sophus::leftJacobianInvSO3(res, Jrot);
 
       for (size_t i = 0; i < SplineOrder; i++) {
-        //
+        // 
         size_t idx = J_R.start_idx + i;
         if (jacobians[idx]) {
           Eigen::Map<Eigen::Matrix<double, 6, 4, Eigen::RowMajor>>
@@ -593,10 +597,10 @@ class IMUPoseFactorNURBS : public ceres::CostFunction {
   using SO3d = Sophus::SO3<double>;
 
   IMUPoseFactorNURBS(int64_t time_ns, const PoseData& pose_data,
-                     const Vec6d& info_vec, const std::vector<int64_t>& knts,
-                     const std::pair<int, double>& su,
-                     const Eigen::Matrix4d& blending_matrix,
-                     const Eigen::Matrix4d& cumulative_blending_matrix)
+                const Vec6d& info_vec,
+                const std::vector<int64_t>& knts, const std::pair<int, double>& su,
+                const Eigen::Matrix4d& blending_matrix,
+                const Eigen::Matrix4d& cumulative_blending_matrix)
       : time_ns_(time_ns),
         pose_data_(pose_data),
         info_vec_(info_vec),
@@ -604,7 +608,7 @@ class IMUPoseFactorNURBS : public ceres::CostFunction {
         su_(su),
         blending_matrix_(blending_matrix),
         cumulative_blending_matrix_(cumulative_blending_matrix) {
-    ///
+    /// 
     set_num_residuals(6);
     ///
     size_t kont_num = 4;
@@ -632,12 +636,12 @@ class IMUPoseFactorNURBS : public ceres::CostFunction {
       S_ItoG = so3_spline_view.EvaluateRotationNURBS(
           su_, cumulative_blending_matrix_, parameters, &J_R);
       p_IinG = r3_spline_view.evaluateNURBS(su_, blending_matrix_,
-                                            parameters + P_offset, &J_p);
+                                       parameters + P_offset, &J_p);
     } else {
       S_ItoG = so3_spline_view.EvaluateRotationNURBS(
           su_, cumulative_blending_matrix_, parameters);
       p_IinG = r3_spline_view.evaluateNURBS(su_, blending_matrix_,
-                                            parameters + P_offset);
+                                       parameters + P_offset);
     }
 
     Eigen::Map<Eigen::Matrix<double, 6, 1>> residual(residuals);
@@ -666,7 +670,7 @@ class IMUPoseFactorNURBS : public ceres::CostFunction {
       Sophus::leftJacobianInvSO3(res, Jrot);
 
       for (size_t i = 0; i < SplineOrder; i++) {
-        //
+        // 
         // size_t idx = J_R.start_idx + i;
         size_t idx = i;
         if (jacobians[idx]) {
@@ -723,11 +727,11 @@ class IMURelativePoseFactorNURBS : public ceres::CostFunction {
   using SO3d = Sophus::SO3<double>;
 
   IMURelativePoseFactorNURBS(int64_t time_ns, const PoseData& pose_data,
-                             const SE3d& pose_init, const Vec6d& info_vec,
-                             const std::vector<int64_t>& knts,
-                             const std::pair<int, double>& su,
-                             const Eigen::Matrix4d& blending_matrix,
-                             const Eigen::Matrix4d& cumulative_blending_matrix)
+                const SE3d& pose_init,
+                const Vec6d& info_vec,
+                const std::vector<int64_t>& knts, const std::pair<int, double>& su,
+                const Eigen::Matrix4d& blending_matrix,
+                const Eigen::Matrix4d& cumulative_blending_matrix)
       : time_ns_(time_ns),
         pose_data_(pose_data),
         pose_init_(pose_init),
@@ -736,9 +740,9 @@ class IMURelativePoseFactorNURBS : public ceres::CostFunction {
         su_(su),
         blending_matrix_(blending_matrix),
         cumulative_blending_matrix_(cumulative_blending_matrix) {
-    ///
+    /// 
     set_num_residuals(6);
-    ///
+    /// 
     size_t kont_num = 4;
     for (size_t i = 0; i < kont_num; ++i) {
       mutable_parameter_block_sizes()->push_back(4);
@@ -764,12 +768,12 @@ class IMURelativePoseFactorNURBS : public ceres::CostFunction {
       S_ItoG = so3_spline_view.EvaluateRotationNURBS(
           su_, cumulative_blending_matrix_, parameters, &J_R);
       p_IinG = r3_spline_view.evaluateNURBS(su_, blending_matrix_,
-                                            parameters + P_offset, &J_p);
+                                       parameters + P_offset, &J_p);
     } else {
       S_ItoG = so3_spline_view.EvaluateRotationNURBS(
           su_, cumulative_blending_matrix_, parameters);
       p_IinG = r3_spline_view.evaluateNURBS(su_, blending_matrix_,
-                                            parameters + P_offset);
+                                       parameters + P_offset);
     }
 
     SO3d rot_init = pose_init_.so3();
@@ -778,11 +782,9 @@ class IMURelativePoseFactorNURBS : public ceres::CostFunction {
     Eigen::Vector3d relative_t = rot_init.inverse() * (p_IinG - pos_init);
 
     Eigen::Map<Eigen::Matrix<double, 6, 1>> residual(residuals);
-    // residual.block<3, 1>(0, 0) = (S_ItoG *
-    // pose_data_.orientation.inverse()).log(); residual.block<3, 1>(3, 0) =
-    // p_IinG - pose_data_.position;
-    residual.block<3, 1>(0, 0) =
-        (relative_R * pose_data_.orientation.inverse()).log();
+    // residual.block<3, 1>(0, 0) = (S_ItoG * pose_data_.orientation.inverse()).log();
+    // residual.block<3, 1>(3, 0) = p_IinG - pose_data_.position;
+    residual.block<3, 1>(0, 0) = (relative_R * pose_data_.orientation.inverse()).log();
     residual.block<3, 1>(3, 0) = relative_t - pose_data_.position;
 
     if (jacobians) {
@@ -815,12 +817,9 @@ class IMURelativePoseFactorNURBS : public ceres::CostFunction {
               jacobian_kont_R(jacobians[idx]);
           jacobian_kont_R.setZero();
           /// [for rotation residual]
-          jacobian_kont_R.block<3, 3>(0, 0) =
-              Jrot * rot_init.inverse().matrix() * J_R.d_val_d_knot[i];  //
+          jacobian_kont_R.block<3, 3>(0, 0) = Jrot * rot_init.inverse().matrix() * J_R.d_val_d_knot[i];  //
           // jacobian_kont_R.block<3, 3>(0, 0) = Jrot * J_R.d_val_d_knot[i];
-          // jacobian_kont_R.block<3, 3>(0, 0) = Jrot *
-          // pose_data_.orientation.unit_quaternion().toRotationMatrix() *
-          // J_R.d_val_d_knot[i];
+          // jacobian_kont_R.block<3, 3>(0, 0) = Jrot * pose_data_.orientation.unit_quaternion().toRotationMatrix() * J_R.d_val_d_knot[i];
           /// L*J
           jacobian_kont_R = (info_vec_.asDiagonal() * jacobian_kont_R).eval();
         }
@@ -837,9 +836,8 @@ class IMURelativePoseFactorNURBS : public ceres::CostFunction {
           /// [for position residual]
           // jacobian_kont_P.block<3, 3>(3, 0) =
           //     J_p.d_val_d_knot[i] * Eigen::Matrix3d::Identity();
-          jacobian_kont_P.block<3, 3>(3, 0) = J_p.d_val_d_knot[i] *
-                                              rot_init.inverse().matrix() *
-                                              Eigen::Matrix3d::Identity();  //
+          jacobian_kont_P.block<3, 3>(3, 0) =
+              J_p.d_val_d_knot[i] * rot_init.inverse().matrix() * Eigen::Matrix3d::Identity();  //
           /// L*J
           jacobian_kont_P = (info_vec_.asDiagonal() * jacobian_kont_P).eval();
         }
@@ -878,10 +876,10 @@ class LocalVelocityFactor : public ceres::CostFunction,
         local_velocity_(local_velocity),
         spline_segment_meta_(spline_segment_meta),
         weight_(weight) {
-    ///
+    /// 
     set_num_residuals(3);
 
-    ///
+    /// 
     size_t knot_num = this->spline_segment_meta_.NumParameters();
     for (size_t i = 0; i < knot_num; ++i) {
       mutable_parameter_block_sizes()->push_back(4);
@@ -1020,10 +1018,10 @@ class Local6DoFVelocityFactor : public ceres::CostFunction,
         local_velocity_(local_velocity),
         spline_segment_meta_(spline_segment_meta),
         sqrt_info_(sqrt_info) {
-    ///
+    /// 
     set_num_residuals(6);
 
-    ///
+    /// 
     size_t knot_num = this->spline_segment_meta_.NumParameters();
     for (size_t i = 0; i < knot_num; ++i) {
       mutable_parameter_block_sizes()->push_back(4);
@@ -1061,10 +1059,10 @@ class RelativeOrientationFactor : public ceres::CostFunction, So3SplineView {
         ta_ns_(ta_ns),
         tb_ns_(tb_ns),
         spline_meta_(spline_meta) {
-    ///
+    /// 
     set_num_residuals(3);
 
-    ///
+    /// 
     size_t knot_num = spline_meta_.NumParameters();
     for (size_t i = 0; i < knot_num; ++i) {
       mutable_parameter_block_sizes()->push_back(4);
@@ -1085,7 +1083,7 @@ class RelativeOrientationFactor : public ceres::CostFunction, So3SplineView {
       spline_meta_.ComputeSplineIndex(ta_ns_, R_offset[0], u);
       spline_meta_.ComputeSplineIndex(tb_ns_, R_offset[1], u);
 
-      //
+      // 
       size_t segment0_knot_num = spline_meta_.segments.at(0).NumParameters();
       for (int i = 0; i < 2; ++i) {
         if (R_offset[i] >= segment0_knot_num) {
@@ -1160,9 +1158,6 @@ class RelativeOrientationFactor : public ceres::CostFunction, So3SplineView {
   double ta_ns_, tb_ns_;
   SplineMeta<SplineOrder> spline_meta_;
 };
-
-class UWBFactorNURBS : public ceres::CostFunction, So3SplineView, RdSplineView {
-  // TODO
 
 }  // namespace analytic_derivative
 

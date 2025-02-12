@@ -15,7 +15,8 @@ UWBHandler::UWBHandler(const YAML::Node &node, ros::NodeHandle &nh)
   uwb_data_num_ = node["uwb_data_num"].as<int>();
 
   // Initialize ROS publisher
-  pub_uwb_data_ = nh_.advertise<uwb::UWBData>(uwb_data_topic_, 1);
+  pub_uwb_data_ =
+      nh_.advertise<nlink_parser::LinktrackTagframe0>(uwb_data_topic_, 1);
 
   // Initialize ROS subscriber
   sub_uwb_data_ =
@@ -25,7 +26,8 @@ UWBHandler::UWBHandler(const YAML::Node &node, ros::NodeHandle &nh)
   uwb_data_.reserve(uwb_data_num_);
 }
 
-void UWBHandler::ParseUWBData(const uwb::UWBData::ConstPtr &uwb_msg) {
+void UWBHandler::ParseUWBData(
+    const nlink_parser::LinktrackTagframe0::ConstPtr &uwb_msg) {
   // Store the measurement
   latest_measurement_ = *uwb_msg;
   has_new_measurement_ = true;
@@ -36,7 +38,7 @@ void UWBHandler::ParseUWBData(const uwb::UWBData::ConstPtr &uwb_msg) {
   }
 
   // Publish processed data
-  PublishUWBData();
+  // PublishUWBData();
 }
 
 void UWBHandler::PublishUWBData() {

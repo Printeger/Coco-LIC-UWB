@@ -203,19 +203,19 @@ void OdometryManager::RunBag() {
       }
       TicToc t_update;
       // fusing lidar-imu-camera to update the trajectory
-      // SolveLICO();
-      SolveLICUO();
+      SolveLICO();
+      // SolveLICUO();
       LOG(INFO) << "[Update time]: " << t_update.toc() << " ms.";
       // deep copy
       msg_manager_->cur_msgs = NextMsgs();
       msg_manager_->cur_msgs = msg_manager_->next_msgs;
       msg_manager_->cur_msgs.image = msg_manager_->next_msgs.image.clone();
-      msg_manager_->cur_msgs.uwb = msg_manager_->next_msgs.uwb.clone();
+      msg_manager_->cur_msgs.uwb_msg = msg_manager_->next_msgs.uwb_msg;
       msg_manager_->next_msgs = NextMsgs();
       msg_manager_->next_msgs = msg_manager_->next_next_msgs;
       msg_manager_->next_msgs.image =
           msg_manager_->next_next_msgs.image.clone();
-      msg_manager_->next_msgs.uwb = msg_manager_->next_next_msgs.uwb.clone();
+      msg_manager_->next_msgs.uwb_msg = msg_manager_->next_next_msgs.uwb_msg;
       msg_manager_->next_next_msgs = NextMsgs();
 
       traj_max_time_ns_cur = traj_max_time_ns_next;
@@ -540,29 +540,31 @@ void OdometryManager::ProcessLICUOData() {
   }
 
   /// [5] update UWB measurements
-  if (process_uwb) {
-    uwb_handler_->UpdateUWBMeasurements(msg.uwb);
-  }
+  // if (process_uwb) {
+  //   uwb_handler_->UpdateUWBMeasurements(msg.uwb);
+  // }
 
   /// [6] finely optimize trajectory based on prior、lidar、imu、camera、uwb
   for (int iter = 0; iter < lidar_iter_; ++iter) {
     lidar_handler_->GetLoamFeatureAssociation();
 
-    if (process_image && process_uwb) {
-      trajectory_manager_->UpdateTrajectoryWithLICUO(
-          iter, msg.image_timestamp, msg.uwb_timestamp,
-          lidar_handler_->GetPointCorrespondence(), v_points_, px_obss_,
-          uwb_handler_->GetUWBMeasurements(), 8);
-    } else if (process_image) {
-      trajectory_manager_->UpdateTrajectoryWithLIC(
-          iter, msg.image_timestamp, lidar_handler_->GetPointCorrespondence(),
-          v_points_, px_obss_, 8);
-    } else {
-      trajectory_manager_->UpdateTrajectoryWithLIC(
-          iter, msg.image_timestamp, lidar_handler_->GetPointCorrespondence(),
-          {}, {}, 8);
-      trajectory_manager_->SetProcessCurImg(false);
-    }
+    // TODO
+    // if (process_image && process_uwb) {
+    //   trajectory_manager_->UpdateTrajectoryWithLICUO(
+    //       iter, msg.image_timestamp, msg.uwb_timestamp,
+    //       lidar_handler_->GetPointCorrespondence(), v_points_, px_obss_,
+    //       uwb_handler_->GetUWBMeasurements(), 8);
+    // } else if (process_image) {
+    trajectory_manager_->UpdateTrajectoryWithLIC(
+        iter, msg.image_timestamp, lidar_handler_->GetPointCorrespondence(),
+        v_points_, px_obss_, 8);
+    // } else {
+    //   trajectory_manager_->UpdateTrajectoryWithLIC(
+    //       iter, msg.image_timestamp,
+    //       lidar_handler_->GetPointCorrespondence(),
+    //       {}, {}, 8);
+    //   trajectory_manager_->SetProcessCurImg(false);
+    // }
   }
   PublishCloudAndTrajectory();
 
@@ -689,12 +691,13 @@ bool OdometryManager::PrepareTwoSegMsgs(int seg_idx) {
                               traj_max_time_ns, data_start_time);
   }
 
-  //
+  // TODO: ??? Should I add the uwb data here?
   if (have_msg) {
     while (!msg_manager_->imu_buf_.empty()) {
       trajectory_manager_->AddIMUData(msg_manager_->imu_buf_.front());
       msg_manager_->imu_buf_.pop_front();
     }
+
     if (seg_idx == 0) {
       traj_max_time_ns_cur = traj_max_time_ns;
     }
@@ -810,6 +813,7 @@ void OdometryManager::UpdateTwoSeg() {
   }
 }
 
+// to relative measure time
 bool OdometryManager::PrepareMsgs() {
   if (!is_initialized_) return false;
 
@@ -847,6 +851,7 @@ bool OdometryManager::PrepareMsgs() {
                             traj_max_time_ns, data_start_time);
 
   if (have_msg) {
+    // TODO: check this condition
     while (!msg_manager_->imu_buf_.empty() || !msg_manager_->uwb_buf_.empty()) {
       trajectory_manager_->AddIMUData(msg_manager_->imu_buf_.front());
       msg_manager_->imu_buf_.pop_front();

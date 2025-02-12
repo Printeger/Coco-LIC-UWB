@@ -45,22 +45,13 @@
 #include <utils/eigen_utils.hpp>
 #include <vector>
 
-#include "nlink_unpack/nlink_linktrack_anchorframe0.h"
-#include "nlink_unpack/nlink_linktrack_nodeframe0.h"
-#include "nlink_unpack/nlink_linktrack_nodeframe1.h"
-#include "nlink_unpack/nlink_linktrack_nodeframe2.h"
-#include "nlink_unpack/nlink_linktrack_nodeframe3.h"
-#include "nlink_unpack/nlink_linktrack_nodeframe4.h"
-#include "nlink_unpack/nlink_linktrack_nodeframe5.h"
-#include "nlink_unpack/nlink_linktrack_nodeframe6.h"
-#include "nlink_unpack/nlink_linktrack_tagframe0.h"
+#include "nlink_parser/LinktrackTagframe0.h"
 
 namespace cocolic {
 
 enum OdometryMode {
   LIO = 0,  //
   LICO = 1,
-  // LICO_UWB = 2,
 };
 
 enum LiDARType {
@@ -79,7 +70,8 @@ struct NextMsgs {
         if_have_image(false),
         image_timestamp(-1),
         image(cv::Mat()),
-        UwbData uwb,
+        if_have_uwb(false),
+        uwb_msg(),
         uwb_timestamp(-1),
         uwb_position(Eigen::Vector3d::Zero()) {}
 
@@ -126,8 +118,10 @@ struct NextMsgs {
   int64_t image_timestamp;  // w.r.t. the start time of the trajectory
   cv::Mat image;            // raw image
 
+  bool if_have_uwb;
   int64_t uwb_timestamp;
   Eigen::Vector3d uwb_position;
+  nlink_parser::LinktrackTagframe0 uwb_msg;
 };
 
 struct LiDARCloudData {

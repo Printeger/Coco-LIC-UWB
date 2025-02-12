@@ -1,6 +1,6 @@
 /*
- * Coco-LIC: Coco-LIC: Continuous-Time Tightly-Coupled LiDAR-Inertial-Camera
- * Odometry using Non-Uniform B-spline Copyright (C) 2023 Xiaolei Lang
+ * Coco-LIC: Coco-LIC: Continuous-Time Tightly-Coupled LiDAR-Inertial-Camera Odometry using Non-Uniform B-spline
+ * Copyright (C) 2023 Xiaolei Lang
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,9 +20,9 @@
 
 #include <ceres/ceres.h>
 #include <pthread.h>
-#include <utils/tic_toc.h>
-
 #include <unordered_map>
+
+#include <utils/tic_toc.h>
 #include <utils/eigen_utils.hpp>
 
 const int NUM_THREADS = 4;
@@ -41,8 +41,7 @@ enum ResidualType {
   RType_Local6DoFVel,
   RType_Image,
   RType_Epipolar,
-  RType_Prior,
-  RType_UWB
+  RType_Prior
 };
 
 const std::string ResidualTypeStr[] = {
@@ -59,11 +58,10 @@ const std::string ResidualTypeStr[] = {
     "Local6DoFVel   ",  //
     "Image          ",  //
     "Epipolar       ",  //
-    "Prior          ",  //
-    "UWB            "   //
+    "Prior          "   //
 };
 
-//
+// 
 struct ResidualBlockInfo {
   ResidualBlockInfo(ResidualType _residual_type,
                     ceres::CostFunction *_cost_function,
@@ -76,17 +74,17 @@ struct ResidualBlockInfo {
         parameter_blocks(_parameter_blocks),
         drop_set(_drop_set) {}
 
-  //
+  // 
   void Evaluate();
 
   ResidualType residual_type;
 
   ceres::CostFunction *cost_function;
   ceres::LossFunction *loss_function;
-  std::vector<double *> parameter_blocks;  //
-  std::vector<int> drop_set;               //
+  std::vector<double *> parameter_blocks;  // 
+  std::vector<int> drop_set;               // 
 
-  //
+  // 
   std::vector<
       Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>
       jacobians;
@@ -103,8 +101,8 @@ struct ThreadsStruct {
   std::unordered_map<long, int> parameter_block_idx;   // position in H matrix
 };
 
-//
-//
+// 
+// 
 class MarginalizationInfo {
  public:
   typedef std::shared_ptr<MarginalizationInfo> Ptr;
@@ -113,46 +111,46 @@ class MarginalizationInfo {
 
   int localSize(int size) const;
 
-  //
+  // 
   void addResidualBlockInfo(ResidualBlockInfo *residual_block_info);
 
-  // [1]
-  // [2]
+  // [1] 
+  // [2] 
   void preMarginalize();
 
-  //
+  // 
   bool marginalize();
 
-  //
+  // 
   std::vector<double *> getParameterBlocks(
       std::unordered_map<long, double *> &addr_shift);
 
-  //
+  // 
   std::vector<double *> getParameterBlocks();
 
-  //
+  // 
   std::vector<ResidualBlockInfo *> factors;
 
   // m:  localsize
   // n:  localsize
   int m, n;
 
-  //
+  // 
   std::unordered_map<long, int> parameter_block_size;
 
-  //
-  //
-  //
+  // 
+  // 
+  // 
   std::unordered_map<long, int> parameter_block_idx;
 
-  //
+  // 
   std::unordered_map<long, double *> parameter_block_data;
 
-  //
+  // 
   std::vector<int> keep_block_size;
-  //
+  // 
   std::vector<int> keep_block_idx;
-  //
+  // 
   std::vector<double *> keep_block_data;
 
   Eigen::MatrixXd linearized_jacobians;
@@ -163,10 +161,10 @@ class MarginalizationInfo {
 class MarginalizationFactor : public ceres::CostFunction {
  public:
   //
-  MarginalizationFactor(MarginalizationInfo::Ptr &_marginalization_info);
-  //
+  MarginalizationFactor(MarginalizationInfo::Ptr& _marginalization_info);
+  // 
   virtual bool Evaluate(double const *const *parameters, double *residuals,
                         double **jacobians) const;
 
-  MarginalizationInfo *marginalization_info;
+  MarginalizationInfo* marginalization_info;
 };

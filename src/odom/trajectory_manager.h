@@ -136,14 +136,6 @@ class TrajectoryManager {
       const Eigen::aligned_vector<Eigen::Vector2d> &pnp_2ds,
       const int iteration = 50);
 
-  bool UpdateTrajectoryWithLICUO(
-      int lidar_iter, int64_t img_time_stamp, int64_t uwb_time_stamp,
-      const Eigen::aligned_vector<PointCorrespondence> &point_corrs,
-      const Eigen::aligned_vector<Eigen::Vector3d> &pnp_3ds,
-      const Eigen::aligned_vector<Eigen::Vector2d> &pnp_2ds,
-      const Eigen::aligned_vector<Eigen::Vector3d> &uwb_measurements,
-      const int iteration = 50);
-
   void UpdateLiDARAttribute(double scan_time_min, double scan_time_max);
 
   void Log(std::string descri) const;

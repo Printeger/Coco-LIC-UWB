@@ -719,7 +719,8 @@ void MsgManager::UwbMsgHandle(
     anchor_num++;
   }
   temp_uwb_data.anchor_num = anchor_num;
-  temp_uwb_data.tag_position = uwb_msg->pos_3d;
+  temp_uwb_data.tag_position = Eigen::Vector3d(
+      uwb_msg->pos_3d[0], uwb_msg->pos_3d[1], uwb_msg->pos_3d[2]);
 
   uwb_buf_.emplace_back(temp_uwb_data);
 }
