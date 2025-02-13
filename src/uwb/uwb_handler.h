@@ -15,8 +15,8 @@ namespace cocolic {
 class UWBHandler {
  public:
   typedef std::shared_ptr<UWBHandler> Ptr;
-  UWBHandler(const YAML::Node &node, ros::NodeHandle &nh);
-  ~UWBHandler();
+  UWBHandler(const YAML::Node &node);
+  ~UWBHandler() {};
   // Process incoming UWB measurements
   void ParseUWBData(const nlink_parser::LinktrackTagframe0::ConstPtr &uwb_msg);
 

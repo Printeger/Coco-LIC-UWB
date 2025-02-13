@@ -6,24 +6,15 @@
 
 namespace cocolic {
 
-UWBHandler::UWBHandler(const YAML::Node &node, ros::NodeHandle &nh)
-    : nh_(nh), is_uwb_data_saved_(false), has_new_measurement_(false) {
+UWBHandler::UWBHandler(const YAML::Node &node) {
   // Load configuration from YAML
   uwb_data_path_ = node["uwb_data_path"].as<std::string>();
   uwb_data_file_ = node["uwb_data_file"].as<std::string>();
   uwb_data_topic_ = node["uwb_data_topic"].as<std::string>();
   uwb_data_num_ = node["uwb_data_num"].as<int>();
 
-  // Initialize ROS publisher
-  pub_uwb_data_ =
-      nh_.advertise<nlink_parser::LinktrackTagframe0>(uwb_data_topic_, 1);
-
-  // Initialize ROS subscriber
-  sub_uwb_data_ =
-      nh_.subscribe(uwb_data_topic_, 10, &UWBHandler::ParseUWBData, this);
-
   // Reserve space for data storage
-  uwb_data_.reserve(uwb_data_num_);
+  // uwb_data_.reserve(uwb_data_num_);
 }
 
 void UWBHandler::ParseUWBData(
@@ -58,7 +49,8 @@ void UWBHandler::SaveUWBData() {
 
     for (const auto &data : uwb_data_) {
       // Format: timestamp, distance, anchor_id, etc.
-      file << data.header.stamp << "," << data.distance << "," << data.anchor_id
+      file << data.system_time << "," << data.pos_3d[0] << "," << data.pos_3d[1]
+           << "," << data.pos_3d[2]
            << "\n";  // Adjust based on your UWBData message structure
     }
 

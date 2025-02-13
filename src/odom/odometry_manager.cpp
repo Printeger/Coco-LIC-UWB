@@ -96,7 +96,7 @@ OdometryManager::OdometryManager(const YAML::Node &node, ros::NodeHandle &nh)
   K_ << fx, 0.0, cx, 0.0, fy, cy, 0.0, 0.0, 1.0;
 
   // uwb
-  uwb_handler_ = std::make_shared<UWBHandler>(uwb_node, trajectory_);
+  uwb_handler_ = std::make_shared<UWBHandler>(uwb_node);
   std::cout << "\n🍺 The number of UWB is " << uwb_node["num_uwb"].as<int>()
             << "." << std::endl;
 

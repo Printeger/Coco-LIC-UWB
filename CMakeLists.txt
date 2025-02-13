@@ -116,6 +116,12 @@ file(GLOB r3live_files
 add_library(r3live_lib ${r3live_files})
 target_link_libraries(r3live_lib ${thirdparty_libraries})
 
+file(GLOB uwb_files
+    "src/uwb/uwb_handler.cpp"
+)
+add_library(uwb_lib ${uwb_files})
+target_link_libraries(uwb_lib ${thirdparty_libraries})
+
 add_executable(odometry_node 
    src/odometry_node.cpp
    src/imu/imu_state_estimator.cpp
@@ -132,6 +138,7 @@ target_link_libraries(odometry_node
    spline_lib 
    lidar_lib 
    r3live_lib
-   ${thirdparty_libraries}
+   uwb_lib
+  ${thirdparty_libraries}
   #  fmt::fmt
 )

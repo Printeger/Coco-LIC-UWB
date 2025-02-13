@@ -194,6 +194,11 @@ struct ImageData {
 struct UwbData {
   UwbData() : timestamp(0), is_time_wrt_traj_start(false) {}
 
+  void ToRelativeMeasureTime(int64_t traj_start_time) {
+    timestamp -= traj_start_time;
+    is_time_wrt_traj_start = true;
+  }
+
   int64_t timestamp;
   int64_t anchor_num;
   int64_t tag_num;
@@ -321,6 +326,7 @@ class MsgManager {
   std::deque<UwbData> uwb_buf_;
   std::vector<int64_t> lidar_max_timestamps_;
   int64_t image_max_timestamp_;
+  int64_t uwb_max_timestamp_;
 
   Eigen::aligned_deque<PoseData> pose_buf_;
   PoseData init_pose_;
