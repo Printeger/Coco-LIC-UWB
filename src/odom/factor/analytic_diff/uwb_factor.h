@@ -11,15 +11,21 @@ namespace analytic_derivative {
 class UWBFactorNURBS : public ceres::CostFunction {
  public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+  using Vec3d = Eigen::Matrix<double, 3, 1>;
+  using Mat3d = Eigen::Matrix<double, 3, 3>;
+  using SO3d = Sophus::SO3<double>;
 
   UWBFactorNURBS(int64_t time_ns, const std::pair<int, double>& segment,
                  const Eigen::Matrix4d& blending_matrix,
                  const Eigen::Matrix4d& cumulative_blending_matrix,
+                 const SO3d& S_UtoI, const Vec3d& p_UinI,
                  const UwbData& uwb_measurement, double weight)
       : time_ns_(time_ns),
         segment_(segment),
         blending_matrix_(blending_matrix),
         cumulative_blending_matrix_(cumulative_blending_matrix),
+        S_UtoI_(S_UtoI),
+        p_UinI_(p_UinI),
         uwb_measurement_(uwb_measurement),
         weight_(weight) {
     set_num_residuals(1);
@@ -46,7 +52,8 @@ class UWBFactorNURBS : public ceres::CostFunction {
     Eigen::Map<const Eigen::Vector3d> p_IinG(parameters[1]);
 
     // Predicted UWB measurement based on current pose
-    Eigen::Vector3d predicted_uwb = p_IinG;  // TODO: Add UWB measurement model
+    Eigen::Vector3d predicted_uwb =
+        S_UtoI_ * p_UinI_ + p_IinG;  // TODO: Add UWB measurement model
 
     // Compute residual
     Eigen::Map<Eigen::Vector3d> residual(residuals);
@@ -79,6 +86,8 @@ class UWBFactorNURBS : public ceres::CostFunction {
   Eigen::Matrix4d cumulative_blending_matrix_;
   Eigen::Vector3d uwb_measurement_;
   Eigen::Matrix3d K_;
+  SO3d S_UtoI_;
+  Vec3d p_UinI_;
   double weight_;
 };
 
