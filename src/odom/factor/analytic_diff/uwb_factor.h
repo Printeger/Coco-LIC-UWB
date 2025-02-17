@@ -15,21 +15,29 @@ class UWBFactorNURBS : public ceres::CostFunction {
   UWBFactorNURBS(int64_t time_ns, const std::pair<int, double>& segment,
                  const Eigen::Matrix4d& blending_matrix,
                  const Eigen::Matrix4d& cumulative_blending_matrix,
-                 const UwbData& uwb_measurement, const Eigen::Matrix3d& K,
-                 double weight)
+                 const UwbData& uwb_measurement, double weight)
       : time_ns_(time_ns),
         segment_(segment),
         blending_matrix_(blending_matrix),
         cumulative_blending_matrix_(cumulative_blending_matrix),
         uwb_measurement_(uwb_measurement),
-        K_(K),
-        weight_(weight) {}
+        weight_(weight) {
+    set_num_residuals(1);
+
+    size_t kont_num = 4;
+    for (size_t i = 0; i < kont_num; ++i) {
+      mutable_parameter_block_sizes()->push_back(4);
+    }
+    for (size_t i = 0; i < kont_num; ++i) {
+      mutable_parameter_block_sizes()->push_back(3);
+    }
+  }
 
   virtual bool Evaluate(double const* const* parameters, double* residuals,
                         double** jacobians) const {
     // TODO: Implement UWB factor evaluation
     // 1. Get control points from parameters
-    // 2. Calculate predicted UWB measurement using B-spline
+    // 2. TODO: Calculate predicted UWB measurement using B-spline!!!
     // 3. Compute residual between predicted and actual UWB measurement
     // 4. If jacobians requested, compute derivatives w.r.t control points
 
@@ -65,6 +73,7 @@ class UWBFactorNURBS : public ceres::CostFunction {
 
  private:
   int64_t time_ns_;
+  UwbData uwb_data_;
   std::pair<int, double> segment_;
   Eigen::Matrix4d blending_matrix_;
   Eigen::Matrix4d cumulative_blending_matrix_;

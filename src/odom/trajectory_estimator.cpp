@@ -276,8 +276,7 @@ void TrajectoryEstimator::AddPhotometricMeasurementAnalyticNURBS(
 }
 
 void TrajectoryEstimator::AddUWBMeasurementAnalyticNURBS(
-    const UwbData &uwb_measurement, const Eigen::Matrix3d &K,
-    double uwb_weight) {
+    const UwbData &uwb_measurement, double uwb_weight) {
   int64_t time_ns = uwb_measurement.timestamp;
   std::pair<int, double> su;  // i u
   trajectory_->GetIdxT(time_ns, su);
@@ -289,7 +288,7 @@ void TrajectoryEstimator::AddUWBMeasurementAnalyticNURBS(
   using Functor = analytic_derivative::UWBFactorNURBS;
   ceres::CostFunction *cost_function =
       new Functor(time_ns, su, blending_matrix, cumulative_blending_matrix,
-                  uwb_measurement, K, uwb_weight);
+                  uwb_measurement, uwb_weight);
 
   std::vector<double *> vec;
   AddControlPointsNURBS(su.first - 3, vec);
@@ -1019,7 +1018,7 @@ void TrajectoryEstimator::AddLocal6DoFVelocityAnalytic(
   }
 }
 
-// =========== LidAR =========== //
+// =========== LiDAR =========== //
 
 void TrajectoryEstimator::AddLoamMeasurementAnalytic(
     const PointCorrespondence &pc, const SO3d &S_GtoM,

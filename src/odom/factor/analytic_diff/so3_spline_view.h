@@ -1,6 +1,6 @@
 /*
- * Coco-LIC: Coco-LIC: Continuous-Time Tightly-Coupled LiDAR-Inertial-Camera Odometry using Non-Uniform B-spline
- * Copyright (C) 2023 Xiaolei Lang
+ * Coco-LIC: Coco-LIC: Continuous-Time Tightly-Coupled LiDAR-Inertial-Camera
+ * Odometry using Non-Uniform B-spline Copyright (C) 2023 Xiaolei Lang
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,12 +19,11 @@
 #pragma once
 
 #include <spline/spline_common.h>
-#include <utils/sophus_utils.hpp>
 
 #include <Eigen/Dense>
-#include <sophus_lib/so3.hpp>
-
 #include <array>
+#include <sophus_lib/so3.hpp>
+#include <utils/sophus_utils.hpp>
 
 namespace cocolic {
 namespace analytic_derivative {
@@ -81,7 +80,7 @@ class So3SplineView {
 
     if (J) {
       J->start_idx = s;
-      J_helper = res.matrix();  // 
+      J_helper = res.matrix();  //
     }
 
     Mat3 R_tmp[DEG];
@@ -102,7 +101,7 @@ class So3SplineView {
     }
 
     if (J) {
-      /// d_val_d_knot 
+      /// d_val_d_knot
       J->d_val_d_knot[0] = J_helper;
 
       for (int i = 0; i < DEG; i++) {
@@ -117,9 +116,9 @@ class So3SplineView {
   }
 
   static SO3 EvaluateRotationNURBS(const std::pair<int, double>& su,
-                              const Eigen::Matrix4d& cumu_blending_matrix,
-                              double const* const* knots,
-                              JacobianStruct* J = nullptr) {
+                                   const Eigen::Matrix4d& cumu_blending_matrix,
+                                   double const* const* knots,
+                                   JacobianStruct* J = nullptr) {
     size_t s = 0;
     double u = su.second;
 
@@ -135,7 +134,7 @@ class So3SplineView {
 
     if (J) {
       J->start_idx = s;
-      J_helper = res.matrix();  // 
+      J_helper = res.matrix();  //
     }
 
     Mat3 R_tmp[DEG];
@@ -160,7 +159,7 @@ class So3SplineView {
         J->d_val_d_knot[i].setZero();
       }
 
-      /// d_val_d_knot 
+      /// d_val_d_knot
       J->d_val_d_knot[0] = J_helper;
 
       for (int i = 0; i < DEG; i++) {
@@ -187,49 +186,54 @@ class So3SplineView {
                         double const* const* knots,
                         // const Vec3& rhs,
                         JacobianStruct* J = nullptr) {
+    // 1. 计算时间参数
     std::pair<double, size_t> ui = splne_meta.computeTIndexNs(time_ns);
-    size_t s = ui.second;
-    double u = ui.first;
+    size_t s = ui.second;  // 获取样条段的起始索引
+    double u = ui.first;   // 获取归一化的局部时间参数 [0,1]
 
-    VecN p;
-    baseCoeffsWithTime<0>(p, u);
+    // 2. 计算基函数系数
+    VecN p;                       // N维向量存储基函数值
+    baseCoeffsWithTime<0>(p, u);  // 计算给定时间u的基函数值
 
-    VecN coeff = blending_matrix_ * p;
-
+    VecN coeff = blending_matrix_ * p;  // 应用混合矩阵得到实际系数
+    // 3. 如果需要计算雅可比矩阵，记录起始索引
     if (J) {
       J->start_idx = s;
     }
-
+    // 4. 初始化累积变量
     SO3 A_accum_inv;           // A_3_inv * A2_inv * A1_inv
     Mat3 A_post_inv[DEG + 1];  // A_3_inv*A2_inv*A1_inv,A_3_inv*A2_inv,A_3_inv,I
     Mat3 Jr_inv_delta[DEG], Jr_kdelta[DEG];
-
+    // 初始化最后一个元素为单位矩阵
     A_post_inv[DEG] = A_accum_inv.matrix();  // Identity Matrix
 
+    // 5. 主循环：计算累积旋转
     for (int i = DEG - 1; i >= 0; i--) {
+      // 获取相邻的两个控制点
       Eigen::Map<SO3 const> R0(knots[s + i]);
       Eigen::Map<SO3 const> R1(knots[s + i + 1]);
-
+      // 计算两个控制点之间的旋转差（在李代数上）
       Vec3 delta = (R0.inverse() * R1).log();
       Vec3 kdelta = delta * coeff[i + 1];
-
+      // 应用系数
       A_accum_inv *= SO3::exp(-kdelta);
-
+      // 6. 如果需要计算雅可比矩阵
       if (J) {
         Sophus::rightJacobianInvSO3(delta, Jr_inv_delta[i]);
         Sophus::rightJacobianSO3(kdelta, Jr_kdelta[i]);
         A_post_inv[i] = A_accum_inv.matrix();
       }
     }
+    // 7. 计算最终结果
+    Eigen::Map<SO3 const> Ri(knots[s]);    // 获取起始控制点
+    SO3 res = Ri * A_accum_inv.inverse();  // 计算最终旋转
 
-    Eigen::Map<SO3 const> Ri(knots[s]);
-    SO3 res = Ri * A_accum_inv.inverse();
-
+    // 8. 计算雅可比矩阵（如果需要）
     if (J) {
       Mat3 J_helper = A_post_inv[0];
       J->d_val_d_knot[0] = J_helper;
 
-      /// d_val_d_knot 
+      /// d_val_d_knot // 计算对每个控制点的导数
       for (int i = 0; i < DEG; i++) {
         J_helper = coeff[i + 1] * A_post_inv[i + 1] * Jr_kdelta[i];
 
@@ -238,13 +242,13 @@ class So3SplineView {
       }
     }
 
-    return res;
+    return res;  // 返回插值得到的旋转矩阵
   }
 
   static SO3 EvaluateRpNURBS(const std::pair<int, double>& su,
-                        const Eigen::Matrix4d& cumu_blending_matrix,
-                        double const* const* knots,
-                        JacobianStruct* J = nullptr) {
+                             const Eigen::Matrix4d& cumu_blending_matrix,
+                             double const* const* knots,
+                             JacobianStruct* J = nullptr) {
     double u = su.second;
 
     VecN p;
@@ -288,7 +292,7 @@ class So3SplineView {
       Mat3 J_helper = A_post_inv[0];
       J->d_val_d_knot[0] = J_helper;
 
-      /// d_val_d_knot 
+      /// d_val_d_knot
       for (int i = 0; i < DEG; i++) {
         J_helper = coeff[i + 1] * A_post_inv[i + 1] * Jr_kdelta[i];
 
@@ -332,7 +336,7 @@ class So3SplineView {
     Mat3 Jr_inv_delta[DEG], Jr_kdelta[DEG];
 
     Si_A_pre[0] = Ri;
-//    Ri_A_pre[0] = Ri.matrix();
+    //    Ri_A_pre[0] = Ri.matrix();
     for (int i = 0; i < DEG; i++) {  // 0 1 2
       Eigen::Map<SO3 const> R0(knots[s + i]);
       Eigen::Map<SO3 const> R1(knots[s + i + 1]);
@@ -340,7 +344,7 @@ class So3SplineView {
       Vec3 delta = (R0.inverse() * R1).log();
       Vec3 kdelta = delta * coeff[i + 1];
 
-//      Ri_A_pre[i + 1] = Ri_A_pre[i] * SO3::exp(kdelta).matrix();
+      //      Ri_A_pre[i + 1] = Ri_A_pre[i] * SO3::exp(kdelta).matrix();
       Si_A_pre[i + 1] = Si_A_pre[i] * SO3::exp(kdelta);
 
       if (J) {
@@ -349,20 +353,18 @@ class So3SplineView {
       }
     }
 
-
     for (int i = 0; i < DEG + 1; i++) {  // 0 1 2
-        Ri_A_pre[i] = Si_A_pre[i].matrix();
+      Ri_A_pre[i] = Si_A_pre[i].matrix();
     }
 
-
-//    SO3 res(Ri_A_pre[DEG].transpose());  // R^T
-    SO3 res = Si_A_pre[DEG].inverse(); // R^T
+    //    SO3 res(Ri_A_pre[DEG].transpose());  // R^T
+    SO3 res = Si_A_pre[DEG].inverse();  // R^T
 
     if (J) {
       Mat3 J_helper = Ri_A_pre[0];
       J->d_val_d_knot[0] = J_helper;
 
-      /// d_val_d_knot 
+      /// d_val_d_knot
       for (int i = 0; i < DEG; i++) {
         J_helper = coeff[i + 1] * Ri_A_pre[i] * Jr_kdelta[i];
 
@@ -428,7 +430,7 @@ class So3SplineView {
       Mat3 J_helper = A_post_inv[0];
       J->d_val_d_knot[0] = J_helper;
 
-      /// d_val_d_knot 
+      /// d_val_d_knot
       for (int i = 0; i < DEG; i++) {
         J_helper = coeff[i + 1] * A_post_inv[i] * Jr_kdelta[i];
 

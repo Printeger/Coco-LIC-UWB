@@ -1,6 +1,6 @@
 /*
- * Coco-LIC: Coco-LIC: Continuous-Time Tightly-Coupled LiDAR-Inertial-Camera Odometry using Non-Uniform B-spline
- * Copyright (C) 2023 Xiaolei Lang
+ * Coco-LIC: Coco-LIC: Continuous-Time Tightly-Coupled LiDAR-Inertial-Camera
+ * Odometry using Non-Uniform B-spline Copyright (C) 2023 Xiaolei Lang
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,10 +19,9 @@
 #pragma once
 
 #include <ceres/ceres.h>
+#include <odom/factor/analytic_diff/split_spline_view.h>
 #include <spline/spline_segment.h>
 #include <utils/parameter_struct.h>
-
-#include <odom/factor/analytic_diff/split_spline_view.h>
 
 namespace cocolic {
 namespace analytic_derivative {
@@ -50,7 +49,7 @@ class LoamFeatureFactor : public ceres::CostFunction,
         S_LtoI_(S_LtoI),
         p_LinI_(p_LinI),
         weight_(weight) {
-    /// 
+    ///
     set_num_residuals(1);
 
     ///
@@ -63,17 +62,19 @@ class LoamFeatureFactor : public ceres::CostFunction,
     }
   }
 
+  // parameters: control points
   virtual bool Evaluate(double const* const* parameters, double* residuals,
                         double** jacobians) const {
     typename SO3View::JacobianStruct J_R;
     typename R3View::JacobianStruct J_p;
-
+    // 计算点在IMU坐标系下的位置
     Vec3d p_Lk = pc_.point;
     Vec3d p_IK = S_LtoI_ * p_Lk + p_LinI_;
 
     SO3d S_ItoG;
     Eigen::Vector3d p_IinG = Eigen::Vector3d::Zero();
 
+    // Calculate rotation matrix from IMU axis to global frame, and position
     size_t kont_num = spline_segment_meta_.NumParameters();
     if (jacobians) {
       S_ItoG = SO3View::EvaluateRp(t_point_ns_, spline_segment_meta_,
@@ -86,8 +87,9 @@ class LoamFeatureFactor : public ceres::CostFunction,
       p_IinG = R3View::evaluate(t_point_ns_, spline_segment_meta_,
                                 parameters + kont_num, nullptr);
     }
+    // 计算点在map的位置
     Vec3d p_M = S_GtoM_ * (S_ItoG * p_IK + p_IinG) + p_GinM_;
-
+    // Calculate residual point to plane distance or point to line
     Vec3d J_pi = Vec3d::Zero();
     if (GeometryType::Plane == pc_.geo_type) {
       residuals[0] = p_M.transpose() * pc_.geo_plane.head(3) + pc_.geo_plane[3];
@@ -173,8 +175,8 @@ class LoamFeatureFactor : public ceres::CostFunction,
 };
 
 class LoamFeatureFactorNURBS : public ceres::CostFunction,
-                          So3SplineView,
-                          RdSplineView {
+                               So3SplineView,
+                               RdSplineView {
  public:
   using SO3View = So3SplineView;
   using R3View = RdSplineView;
@@ -184,11 +186,11 @@ class LoamFeatureFactorNURBS : public ceres::CostFunction,
   using SO3d = Sophus::SO3<double>;
 
   LoamFeatureFactorNURBS(int64_t t_point_ns, const PointCorrespondence& pc,
-                    const std::pair<int, double>& su,
-                    const Eigen::Matrix4d& blending_matrix,
-                    const Eigen::Matrix4d& cumulative_blending_matrix,
-                    const SO3d& S_GtoM, const Vec3d& p_GinM, const SO3d& S_LtoI,
-                    const Vec3d& p_LinI, double weight)
+                         const std::pair<int, double>& su,
+                         const Eigen::Matrix4d& blending_matrix,
+                         const Eigen::Matrix4d& cumulative_blending_matrix,
+                         const SO3d& S_GtoM, const Vec3d& p_GinM,
+                         const SO3d& S_LtoI, const Vec3d& p_LinI, double weight)
       : t_point_ns_(t_point_ns),
         pc_(pc),
         su_(su),
@@ -224,14 +226,14 @@ class LoamFeatureFactorNURBS : public ceres::CostFunction,
 
     if (jacobians) {
       S_ItoG = SO3View::EvaluateRpNURBS(su_, cumulative_blending_matrix_,
-                                   parameters, &J_R);
-      p_IinG = R3View::evaluateNURBS(su_, blending_matrix_,
-                                parameters + 4, &J_p);
+                                        parameters, &J_R);
+      p_IinG =
+          R3View::evaluateNURBS(su_, blending_matrix_, parameters + 4, &J_p);
     } else {
       S_ItoG = SO3View::EvaluateRpNURBS(su_, cumulative_blending_matrix_,
-                                   parameters, nullptr);
-      p_IinG = R3View::evaluateNURBS(su_, blending_matrix_,
-                                parameters + 4, nullptr);
+                                        parameters, nullptr);
+      p_IinG =
+          R3View::evaluateNURBS(su_, blending_matrix_, parameters + 4, nullptr);
     }
     Vec3d p_M = S_GtoM_ * (S_ItoG * p_IK + p_IinG) + p_GinM_;
 
@@ -340,10 +342,10 @@ class LoamFeatureOptMapPoseFactor : public ceres::CostFunction,
         spline_segment_meta_(spline_segment_meta),
         weight_(weight) {
     assert(init_flag && "LoamFeatureOptMapPoseFactor not init param");
-    /// 
+    ///
     set_num_residuals(1);
 
-    /// 
+    ///
     size_t kont_num = spline_segment_meta_.NumParameters();
     for (size_t i = 0; i < kont_num; ++i) {
       mutable_parameter_block_sizes()->push_back(4);
@@ -483,7 +485,8 @@ class LoamFeatureOptMapPoseFactor : public ceres::CostFunction,
     S_LtoI = _S_LtoI;
     p_LinI = _p_LinI;
 
-    // std::cout << "[LoamFeatureOptMapPoseFactor] p_LinI: " << p_LinI.transpose()
+    // std::cout << "[LoamFeatureOptMapPoseFactor] p_LinI: " <<
+    // p_LinI.transpose()
     //           << "\n";
   }
 
@@ -520,7 +523,7 @@ class RalativeLoamFeatureFactor : public ceres::CostFunction,
         weight_(weight) {
     assert(init_flag && "RalativeLoamFeatureFactor not init param");
 
-    /// 
+    ///
     set_num_residuals(1);
 
     ///
@@ -553,7 +556,7 @@ class RalativeLoamFeatureFactor : public ceres::CostFunction,
       spline_meta_.ComputeSplineIndex(t_i_, R_offset[0], u);
       spline_meta_.ComputeSplineIndex(t_j_, R_offset[1], u);
 
-      // 
+      //
       size_t segment0_knot_num = spline_meta_.segments.at(0).NumParameters();
       for (int i = 0; i < 2; ++i) {
         if (R_offset[i] >= segment0_knot_num) {
@@ -566,7 +569,7 @@ class RalativeLoamFeatureFactor : public ceres::CostFunction,
       }
     }
 
-    /// 
+    ///
     Vec3d p_Ii = S_LtoI * pc_.point + p_LinI;
 
     SO3d S_IitoG;
@@ -583,7 +586,7 @@ class RalativeLoamFeatureFactor : public ceres::CostFunction,
       p_IiinG = R3View::evaluate(t_i_, spline_meta_.segments.at(seg_idx[0]),
                                  parameters + P_offset[0], nullptr);
     }
-    /// 
+    ///
     Vec3d p_G = S_IitoG * p_Ii + p_IiinG;
     SO3d S_GtoIj;
     Vec3d p_IjinG = Vec3d::Zero();
@@ -636,12 +639,12 @@ class RalativeLoamFeatureFactor : public ceres::CostFunction,
       Eigen::Matrix<double, 1, 3> jac_lhs_R[2];
       Eigen::Matrix<double, 1, 3> jac_lhs_P[2];
 
-      // 
+      //
       jac_lhs_R[0] =
           -J_pi.transpose() * (S_GtoCj * S_IitoG).matrix() * SO3::hat(p_Ii);
       jac_lhs_P[0] = J_pi.transpose() * S_GtoCj.matrix();
 
-      // 
+      //
       jac_lhs_R[1] =
           J_pi.transpose() * S_GtoCj.matrix() * SO3::hat(p_G - p_IjinG);
       jac_lhs_P[1] = -J_pi.transpose() * S_GtoCj.matrix();

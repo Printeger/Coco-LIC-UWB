@@ -20,13 +20,13 @@
 
 #include <ceres/ceres.h>
 #include <ceres/covariance.h>
-#include <factor/uwb_factor.h>
 #include <imu/imu_state_estimator.h>
 #include <lidar/lidar_feature.h>
 #include <odom/factor/analytic_diff/image_feature_factor.h>
 #include <odom/factor/analytic_diff/lidar_feature_factor.h>
 #include <odom/factor/analytic_diff/marginalization_factor.h>
 #include <odom/factor/analytic_diff/trajectory_value_factor.h>
+#include <odom/factor/analytic_diff/uwb_factor.h>
 #include <odom/factor/ceres_local_param.h>
 #include <odom/msg_manager.h>
 #include <utils/parameter_struct.h>
@@ -154,7 +154,6 @@ class TrajectoryEstimator {
       bool marg_this_factor = false);
 
   void AddUWBMeasurementAnalyticNURBS(const UwbData &uwb_measurement,
-                                      const Eigen::Matrix3d &K,
                                       double uwb_weight);
 
   void AddBiasFactor(double *bias_gyr_i, double *bias_gyr_j, double *bias_acc_i,
