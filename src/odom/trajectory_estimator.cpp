@@ -287,8 +287,8 @@ void TrajectoryEstimator::AddUWBMeasurementAnalyticNURBS(
 
   using Functor = analytic_derivative::UWBFactorNURBS;
   ceres::CostFunction *cost_function =
-      new Functor(time_ns, su, blending_matrix, cumulative_blending_matrix,
-                  uwb_measurement, uwb_weight);
+      new Functor(time_ns, uwb_measurement, su, blending_matrix,
+                  cumulative_blending_matrix, uwb_weight);
 
   std::vector<double *> vec;
   AddControlPointsNURBS(su.first - 3, vec);

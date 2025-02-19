@@ -429,7 +429,7 @@ bool TrajectoryManager::UpdateTrajectoryWithLIC(
   return true;
 }
 
-bool TrajectoryManager::UpdateTrajectoryWithLICUO(
+bool TrajectoryManager::UpdateTrajectoryWithLICU(
     int lidar_iter, int64_t img_time_stamp, int64_t uwb_time_stamp,
     const Eigen::aligned_vector<PointCorrespondence> &point_corrs,
     const Eigen::aligned_vector<Eigen::Vector3d> &pnp_3ds,
@@ -563,9 +563,32 @@ bool TrajectoryManager::UpdateTrajectoryWithLICUO(
   // [5] uwb factor
   if (!uwb_measurements.empty()) {
     for (const auto &uwb_meas : uwb_measurements) {
-      estimator->AddUWBMeasurementAnalyticNURBS(uwb_meas, K_,
+      estimator->AddUWBMeasurementAnalyticNURBS(uwb_meas,
                                                 opt_weight_.uwb_weight);
     }
+
+    // SO3d S_UtoI = trajectory_->GetSensorEP(UWBSensor).so3;
+    // Eigen::Vector3d p_UinI = trajectory_->GetSensorEP(UWBSensor).p;
+
+    // for (const auto &uwb_meas : uwb_measurements) {
+    //   if (uwb_meas.timestamp < opt_min_t_ns) continue;
+    //   if (uwb_meas.timestamp >= opt_max_t_ns) continue;
+    //   std::pair<int, double> su;  // i and u
+    //   trajectory_->GetIdxT(uwb_meas.timestamp, su);
+    //   Eigen::Matrix4d blending_matrix =
+    //       trajectory_->blending_mats[su.first - 3];
+    //   Eigen::Matrix4d cumulative_blending_matrix =
+    //       trajectory_->cumu_blending_mats[su.first - 3];
+    //   ceres::CostFunction *cost_function =
+    //       new analytic_derivative::UWBFactorNURBS(
+    //           uwb_meas.timestamp, uwb_meas, su, blending_matrix,
+    //           cumulative_blending_matrix, S_GtoM, p_GinM, S_UtoI, p_UinI,
+    //           opt_weight_.uwb_weight);
+    //   ResidualBlockInfo *residual_block_info =
+    //       new ResidualBlockInfo(RType_UWB, cost_function, NULL, vec,
+    //       drop_set);
+    //   marginalization_info->addResidualBlockInfo(residual_block_info);
+    // }
   }
 
   TicToc t_opt;
@@ -799,6 +822,237 @@ void TrajectoryManager::UpdateLICPrior(
         marginalization_info->addResidualBlockInfo(residual_block_info);
       }
     }
+  }
+
+  marginalization_info->preMarginalize();
+  marginalization_info->marginalize();
+  if (lidar_marg_info) {
+    lidar_marg_info = nullptr;
+  }
+  lidar_marg_info.reset(marginalization_info);
+  lidar_marg_parameter_blocks = marginalization_info->getParameterBlocks();
+}
+
+void TrajectoryManager::UpdateLICUPrior(
+    const Eigen::aligned_vector<PointCorrespondence> &point_corrs,
+    const std::deque<UwbData> &uwb_measurements) {
+  TrajectoryEstimatorOptions option;
+  option.is_marg_state = true;
+
+  TrajectoryEstimator::Ptr estimator(
+      new TrajectoryEstimator(trajectory_, option));  // AddControlPoint
+
+  // construct a new prior
+  MarginalizationInfo *marginalization_info = new MarginalizationInfo();
+
+  // prepare the control points and biases to be marginalized
+  int lhs_idx = trajectory_->numKnots() - 1 - division_ -
+                2;  // retain the last 3 control points in this optimization;
+                    // remember, cubic spline is adopted
+  int rhs_idx = trajectory_->numKnots() - 4;
+
+  auto &last_bias =
+      all_imu_bias_[tparam_.last_bias_time];  // marginalize the bias bi
+  auto &cur_bias = all_imu_bias_[tparam_.cur_bias_time];
+  std::vector<double *> drop_param;
+  for (int i = lhs_idx; i <= rhs_idx; i++) {
+    drop_param.emplace_back(trajectory_->getKnotSO3(i).data());
+    drop_param.emplace_back(trajectory_->getKnotPos(i).data());
+  }
+  drop_param.emplace_back(last_bias.gyro_bias.data());
+  drop_param.emplace_back(last_bias.accel_bias.data());
+
+  // [0] prior factor marginalization
+  if (lidar_marg_info) {
+    std::vector<int> drop_set;
+    for (int i = 0; i < lidar_marg_parameter_blocks.size(); i++) {
+      for (auto const &dp : drop_param) {
+        if (lidar_marg_parameter_blocks[i] == dp) {
+          drop_set.emplace_back(i);
+          break;
+        }
+      }
+    }
+
+    if (!drop_set.empty()) {
+      MarginalizationFactor *cost_function =
+          new MarginalizationFactor(lidar_marg_info);
+      ResidualBlockInfo *residual_block_info =
+          new ResidualBlockInfo(RType_Prior, cost_function, NULL,
+                                lidar_marg_parameter_blocks, drop_set);
+      marginalization_info->addResidualBlockInfo(residual_block_info);
+    }
+  }
+
+  // [1] imu factor marginalization
+  for (int i = tparam_.lio_imu_idx[0]; i < tparam_.lio_imu_idx[1]; ++i) {
+    if (imu_data_.at(i).timestamp < opt_min_t_ns) continue;
+    if (imu_data_.at(i).timestamp >= opt_max_t_ns) continue;
+    int64_t time_ns = imu_data_.at(i).timestamp;
+    std::pair<int, double> su;  // i u
+    trajectory_->GetIdxT(time_ns, su);
+    Eigen::Matrix4d blending_matrix = trajectory_->blending_mats[su.first - 3];
+    Eigen::Matrix4d cumulative_blending_matrix =
+        trajectory_->cumu_blending_mats[su.first - 3];
+    std::vector<double *> vec;
+    estimator->AddControlPointsNURBS(su.first - 3, vec);
+    estimator->AddControlPointsNURBS(su.first - 3, vec, true);
+    vec.emplace_back(last_bias.gyro_bias.data());
+    vec.emplace_back(last_bias.accel_bias.data());
+
+    std::vector<int> drop_set;
+    for (int i = 0; i < vec.size(); i++) {
+      for (auto const &dp : drop_param) {
+        if (vec[i] == dp) {
+          drop_set.emplace_back(i);
+          break;
+        }
+      }
+    }
+
+    if (!drop_set.empty()) {
+      ceres::CostFunction *cost_function =
+          new analytic_derivative::IMUFactorNURBS(
+              time_ns, imu_data_.at(i), gravity_, opt_weight_.imu_info_vec,
+              trajectory_->knts, su, blending_matrix,
+              cumulative_blending_matrix);
+      ResidualBlockInfo *residual_block_info =
+          new ResidualBlockInfo(RType_IMU, cost_function, NULL, vec, drop_set);
+      marginalization_info->addResidualBlockInfo(residual_block_info);
+    }
+  }
+
+  // [2] lidar factor marginalization
+  SO3d S_LtoI = trajectory_->GetSensorEP(LiDARSensor).so3;
+  Eigen::Vector3d p_LinI = trajectory_->GetSensorEP(LiDARSensor).p;
+  SO3d S_GtoM = SO3d(Eigen::Quaterniond::Identity());
+  Eigen::Vector3d p_GinM = Eigen::Vector3d::Zero();
+  for (const auto &v : point_corrs) {
+    if (v.t_point < opt_min_t_ns) continue;
+    if (v.t_point >= opt_max_t_ns) continue;
+    if (v.t_point < tparam_.last_scan[1]) continue;
+    int64_t time_ns = v.t_point;
+    std::pair<int, double> su;  // i and u
+    trajectory_->GetIdxT(time_ns, su);
+    Eigen::Matrix4d blending_matrix = trajectory_->blending_mats[su.first - 3];
+    Eigen::Matrix4d cumulative_blending_matrix =
+        trajectory_->cumu_blending_mats[su.first - 3];
+    std::vector<double *> vec;
+    estimator->AddControlPointsNURBS(su.first - 3, vec);
+    estimator->AddControlPointsNURBS(su.first - 3, vec, true);
+
+    std::vector<int> drop_set;
+    for (int i = 0; i < vec.size(); i++) {
+      for (auto const &dp : drop_param) {
+        if (vec[i] == dp) {
+          drop_set.emplace_back(i);
+          break;
+        }
+      }
+    }
+
+    if (!drop_set.empty()) {
+      double weight = opt_weight_.lidar_weight;
+      if (use_lidar_scale) {
+        weight *= v.scale;
+      }
+      ceres::CostFunction *cost_function =
+          new analytic_derivative::LoamFeatureFactorNURBS(
+              time_ns, v, su, blending_matrix, cumulative_blending_matrix,
+              S_GtoM, p_GinM, S_LtoI, p_LinI, weight);
+      ResidualBlockInfo *residual_block_info = new ResidualBlockInfo(
+          RType_LiDAR, cost_function, NULL, vec, drop_set);
+      int num_residuals = cost_function->num_residuals();
+      Eigen::MatrixXd residuals;
+      residuals.setZero(num_residuals, 1);
+      cost_function->Evaluate(vec.data(), residuals.data(), nullptr);
+      double dist = (residuals / weight).norm();
+      if (dist < 0.05)
+      // if (dist < 0.01)
+      {
+        marginalization_info->addResidualBlockInfo(residual_block_info);
+      }
+    }
+  }
+
+  // [3] bias factor marginalization
+  std::vector<double *> vec;
+  vec.emplace_back(last_bias.gyro_bias.data());
+  vec.emplace_back(cur_bias.gyro_bias.data());
+  vec.emplace_back(last_bias.accel_bias.data());
+  vec.emplace_back(cur_bias.accel_bias.data());
+
+  std::vector<int> drop_set;
+  drop_set.emplace_back(0);  // bgi
+  drop_set.emplace_back(2);  // bai
+
+  analytic_derivative::BiasFactor *cost_function =
+      new analytic_derivative::BiasFactor(1, sqrt_info_);
+  ResidualBlockInfo *residual_block_info =
+      new ResidualBlockInfo(RType_Bias, cost_function, NULL, vec, drop_set);
+  marginalization_info->addResidualBlockInfo(residual_block_info);
+
+  /// [4] pnp factor marginalization
+  if (process_cur_img_ && v_points_.size() != 0) {
+    int64_t time_ns = cur_img_time_;
+    std::pair<int, double> su;  // i和u
+    trajectory_->GetIdxT(time_ns, su);
+    Eigen::Matrix4d blending_matrix = trajectory_->blending_mats[su.first - 3];
+    Eigen::Matrix4d cumulative_blending_matrix =
+        trajectory_->cumu_blending_mats[su.first - 3];
+    std::vector<double *> vec;
+    estimator->AddControlPointsNURBS(su.first - 3, vec);
+    estimator->AddControlPointsNURBS(su.first - 3, vec, true);
+
+    std::vector<int> drop_set;
+    for (int i = 0; i < vec.size(); i++) {
+      for (auto const &dp : drop_param) {
+        if (vec[i] == dp) {
+          drop_set.emplace_back(i);
+          break;
+        }
+      }
+    }
+
+    if (!drop_set.empty()) {
+      Eigen::Matrix3d K;
+      for (int i = 0; i < v_points_.size(); i++) {
+        ceres::CostFunction *cost_function =
+            new analytic_derivative::PnPFactorNURBS(
+                time_ns, su, blending_matrix, cumulative_blending_matrix,
+                v_points_[i], px_obss_[i],
+                trajectory_->GetSensorEP(CameraSensor).so3,
+                trajectory_->GetSensorEP(CameraSensor).p, K_,
+                opt_weight_.image_weight);
+        ceres::LossFunction *loss_function = NULL;
+        loss_function = new ceres::CauchyLoss(10.0);  // adopted from vins-mono
+        ResidualBlockInfo *residual_block_info = new ResidualBlockInfo(
+            RType_Image, cost_function, loss_function, vec, drop_set);
+        marginalization_info->addResidualBlockInfo(residual_block_info);
+      }
+    }
+  }
+
+  // [5] uwb factor marginalization
+  SO3d S_UtoI = trajectory_->GetSensorEP(UWBSensor).so3;
+  Eigen::Vector3d p_UinI = trajectory_->GetSensorEP(UWBSensor).p;
+
+  for (const auto &uwb_meas : uwb_measurements) {
+    if (uwb_meas.timestamp < opt_min_t_ns) continue;
+    if (uwb_meas.timestamp >= opt_max_t_ns) continue;
+    std::pair<int, double> su;  // i and u
+    trajectory_->GetIdxT(uwb_meas.timestamp, su);
+    Eigen::Matrix4d blending_matrix = trajectory_->blending_mats[su.first - 3];
+    Eigen::Matrix4d cumulative_blending_matrix =
+        trajectory_->cumu_blending_mats[su.first - 3];
+    ceres::CostFunction *cost_function =
+        new analytic_derivative::UWBFactorNURBS(
+            uwb_meas.timestamp, uwb_meas, su, blending_matrix,
+            cumulative_blending_matrix, S_GtoM, p_GinM, S_UtoI, p_UinI,
+            opt_weight_.uwb_weight);
+    ResidualBlockInfo *residual_block_info =
+        new ResidualBlockInfo(RType_UWB, cost_function, NULL, vec, drop_set);
+    marginalization_info->addResidualBlockInfo(residual_block_info);
   }
 
   marginalization_info->preMarginalize();

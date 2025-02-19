@@ -32,6 +32,7 @@ enum SensorType {
   IMUSensor = 0,  //  qurey pose and EP
   LiDARSensor,
   CameraSensor,
+  UWBSensor,
   Marker
 };
 

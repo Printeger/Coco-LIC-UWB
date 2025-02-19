@@ -550,7 +550,7 @@ void OdometryManager::ProcessLICUOData() {
 
     // TODO
     // if (process_image && process_uwb) {
-    //   trajectory_manager_->UpdateTrajectoryWithLICUO(
+    //   trajectory_manager_->UpdateTrajectoryWithLICU(
     //       iter, msg.image_timestamp, msg.uwb_timestamp,
     //       lidar_handler_->GetPointCorrespondence(), v_points_, px_obss_,
     //       uwb_handler_->GetUWBMeasurements(), 8);
