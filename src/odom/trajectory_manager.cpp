@@ -562,33 +562,16 @@ bool TrajectoryManager::UpdateTrajectoryWithLICU(
 
   // [5] uwb factor
   if (!uwb_measurements.empty()) {
+    SO3d S_UtoI = trajectory_->GetSensorEP(UWBSensor).so3;
+    Eigen::Vector3d p_UinI = trajectory_->GetSensorEP(UWBSensor).p;
+
     for (const auto &uwb_meas : uwb_measurements) {
-      estimator->AddUWBMeasurementAnalyticNURBS(uwb_meas,
-                                                opt_weight_.uwb_weight);
+      if (uwb_meas.timestamp < opt_min_t_ns) continue;
+      if (uwb_meas.timestamp >= opt_max_t_ns) continue;
+
+      estimator->AddUWBMeasurementAnalyticNURBS(
+          uwb_meas, S_GtoM, p_GinM, S_UtoI, p_UinI, opt_weight_.uwb_weight);
     }
-
-    // SO3d S_UtoI = trajectory_->GetSensorEP(UWBSensor).so3;
-    // Eigen::Vector3d p_UinI = trajectory_->GetSensorEP(UWBSensor).p;
-
-    // for (const auto &uwb_meas : uwb_measurements) {
-    //   if (uwb_meas.timestamp < opt_min_t_ns) continue;
-    //   if (uwb_meas.timestamp >= opt_max_t_ns) continue;
-    //   std::pair<int, double> su;  // i and u
-    //   trajectory_->GetIdxT(uwb_meas.timestamp, su);
-    //   Eigen::Matrix4d blending_matrix =
-    //       trajectory_->blending_mats[su.first - 3];
-    //   Eigen::Matrix4d cumulative_blending_matrix =
-    //       trajectory_->cumu_blending_mats[su.first - 3];
-    //   ceres::CostFunction *cost_function =
-    //       new analytic_derivative::UWBFactorNURBS(
-    //           uwb_meas.timestamp, uwb_meas, su, blending_matrix,
-    //           cumulative_blending_matrix, S_GtoM, p_GinM, S_UtoI, p_UinI,
-    //           opt_weight_.uwb_weight);
-    //   ResidualBlockInfo *residual_block_info =
-    //       new ResidualBlockInfo(RType_UWB, cost_function, NULL, vec,
-    //       drop_set);
-    //   marginalization_info->addResidualBlockInfo(residual_block_info);
-    // }
   }
 
   TicToc t_opt;

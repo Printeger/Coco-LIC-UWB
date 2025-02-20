@@ -154,6 +154,8 @@ class TrajectoryEstimator {
       bool marg_this_factor = false);
 
   void AddUWBMeasurementAnalyticNURBS(const UwbData &uwb_measurement,
+                                      const SO3d &S_GtoM, const Eigen::Vector3d &p_GinM,
+                                      const SO3d &S_UtoI, const Eigen::Vector3d &p_UinI,
                                       double uwb_weight);
 
   void AddBiasFactor(double *bias_gyr_i, double *bias_gyr_j, double *bias_acc_i,

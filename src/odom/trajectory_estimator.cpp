@@ -276,7 +276,9 @@ void TrajectoryEstimator::AddPhotometricMeasurementAnalyticNURBS(
 }
 
 void TrajectoryEstimator::AddUWBMeasurementAnalyticNURBS(
-    const UwbData &uwb_measurement, double uwb_weight) {
+    const UwbData &uwb_measurement, const SO3d &S_GtoM,
+    const Eigen::Vector3d &p_GinM, const SO3d &S_UtoI,
+    const Eigen::Vector3d &p_UinI, double uwb_weight) {
   int64_t time_ns = uwb_measurement.timestamp;
   std::pair<int, double> su;  // i u
   trajectory_->GetIdxT(time_ns, su);
@@ -286,9 +288,9 @@ void TrajectoryEstimator::AddUWBMeasurementAnalyticNURBS(
       trajectory_->cumu_blending_mats[su.first - 3];
 
   using Functor = analytic_derivative::UWBFactorNURBS;
-  ceres::CostFunction *cost_function =
-      new Functor(time_ns, uwb_measurement, su, blending_matrix,
-                  cumulative_blending_matrix, uwb_weight);
+  ceres::CostFunction *cost_function = new Functor(
+      time_ns, uwb_measurement, su, blending_matrix, cumulative_blending_matrix,
+      S_GtoM, p_GinM, S_UtoI, p_UinI, uwb_weight);
 
   std::vector<double *> vec;
   AddControlPointsNURBS(su.first - 3, vec);
