@@ -93,7 +93,11 @@ class OdometryManager {
 
   void ProcessLICData();
 
+  void SolveLIUO();
+
   void SolveLICUO();
+
+  void ProcessLIUOData();
 
   void ProcessLICUOData();
 

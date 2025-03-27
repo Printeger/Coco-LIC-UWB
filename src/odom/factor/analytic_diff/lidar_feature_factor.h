@@ -201,7 +201,7 @@ class LoamFeatureFactorNURBS : public ceres::CostFunction,
         S_LtoI_(S_LtoI),
         p_LinI_(p_LinI),
         weight_(weight) {
-    ///
+    /// TODO: Check
     set_num_residuals(1);
     ///
     size_t knot_num = 4;

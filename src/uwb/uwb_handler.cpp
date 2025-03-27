@@ -8,10 +8,10 @@ namespace cocolic {
 
 UWBHandler::UWBHandler(const YAML::Node &node) {
   // Load configuration from YAML
-  uwb_data_path_ = node["uwb_data_path"].as<std::string>();
-  uwb_data_file_ = node["uwb_data_file"].as<std::string>();
-  uwb_data_topic_ = node["uwb_data_topic"].as<std::string>();
-  uwb_data_num_ = node["uwb_data_num"].as<int>();
+  // uwb_data_path_ = node["uwb_data_path"].as<std::string>();
+  // uwb_data_file_ = node["uwb_data_file"].as<std::string>();
+  // uwb_data_topic_ = node["uwb_data_topic"].as<std::string>();
+  // uwb_data_num_ = node["uwb_data_num"].as<int>();
 
   // Reserve space for data storage
   // uwb_data_.reserve(uwb_data_num_);

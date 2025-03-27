@@ -105,6 +105,8 @@ class TrajectoryManager {
 
   void AddIMUData(const IMUData &data);
 
+  void AddUWBData(const UwbData &data);
+
   void AddPoseData(const PoseData &data);
 
   size_t GetIMUDataSize() const { return imu_data_.size(); }
@@ -145,14 +147,7 @@ class TrajectoryManager {
       const Eigen::aligned_vector<PointCorrespondence> &point_corrs,
       const Eigen::aligned_vector<Eigen::Vector3d> &pnp_3ds,
       const Eigen::aligned_vector<Eigen::Vector2d> &pnp_2ds,
-      const std::deque<UwbData> &uwb_measurements, const int iteration = 50);
-
-  bool UpdateTrajectoryWithLICUO(
-      int lidar_iter, int64_t img_time_stamp, int64_t uwb_time_stamp,
-      const Eigen::aligned_vector<PointCorrespondence> &point_corrs,
-      const Eigen::aligned_vector<Eigen::Vector3d> &pnp_3ds,
-      const Eigen::aligned_vector<Eigen::Vector2d> &pnp_2ds,
-      const std::deque<UwbData> &uwb_measurements, const int iteration = 50);
+      const int iteration = 50);
 
   void UpdateLiDARAttribute(double scan_time_min, double scan_time_max);
 
@@ -226,6 +221,8 @@ class TrajectoryManager {
 
   void RemoveIMUData(int64_t t_window_min);
 
+  void RemoveUWBData(int64_t t_window_min);
+
   void RemovePoseData(int64_t t_window_min);
 
   void InitTrajWithPropagation();
@@ -242,6 +239,7 @@ class TrajectoryManager {
   PoseData original_pose_;
 
   Eigen::aligned_vector<IMUData> imu_data_;
+  Eigen::aligned_vector<UwbData> uwb_data_;
   Eigen::aligned_vector<PoseData> pose_data_;
 
   // State

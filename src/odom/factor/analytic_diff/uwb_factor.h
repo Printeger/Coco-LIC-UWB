@@ -34,6 +34,7 @@ class UWBFactorNURBS : public ceres::CostFunction {
         S_UtoI_(S_UtoI),
         p_UinI_(p_UinI),
         weight_(weight) {
+    LOG(INFO) << "UWB Factor Constructor";
     set_num_residuals(1);
 
     size_t kont_num = 4;
@@ -47,6 +48,7 @@ class UWBFactorNURBS : public ceres::CostFunction {
 
   virtual bool Evaluate(double const* const* parameters, double* residuals,
                         double** jacobians) const {
+    LOG(INFO) << "UWB Factor Evaluate" << std::endl;
     // TODO: Implement UWB factor evaluation
     typename So3SplineView::JacobianStruct J_R;
     typename RdSplineView::JacobianStruct J_p;
@@ -75,6 +77,10 @@ class UWBFactorNURBS : public ceres::CostFunction {
     for (auto anchor : uwb_data_.anchor_positions) {
       auto it = uwb_data_.anchor_distances.find(anchor.first);
       residuals[0] += it->second - (p_UinM - anchor.second).norm();
+      LOG(INFO) << "UWB residual: " << residuals[0]
+                << " anchor postion: " << anchor.second.transpose()
+                << " anchor distance: " << it->second
+                << " predict distance: " << (p_UinM - anchor.second).norm();
     }
     return true;
   }

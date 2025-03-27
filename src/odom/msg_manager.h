@@ -46,17 +46,39 @@
 #include <vector>
 
 #include "nlink_parser/LinktrackTagframe0.h"
+// #include "uwb_driver/UwbEcho.h"
+// #include "uwb_driver/UwbRange.h"
 
 namespace cocolic {
 
 enum OdometryMode {
   LIO = 0,  //
   LICO = 1,
+  LIUO = 2,
+  LICUO = 3,
 };
 
 enum LiDARType {
   VLP = 0,
   LIVOX,
+};
+
+struct UwbData {
+  UwbData() : timestamp(0), is_time_wrt_traj_start(false) {}
+
+  void ToRelativeMeasureTime(int64_t traj_start_time) {
+    // LOG(INFO) << "UwbData Time: " << timestamp << " " << traj_start_time;
+    timestamp -= traj_start_time;
+    is_time_wrt_traj_start = true;
+  }
+
+  int64_t timestamp;
+  int64_t anchor_num;
+  int64_t tag_num;
+  std::unordered_map<int, Eigen::Vector3d> anchor_positions;
+  std::unordered_map<int, double> anchor_distances;
+  Eigen::Vector3d tag_position;
+  bool is_time_wrt_traj_start;
 };
 
 struct NextMsgs {
@@ -121,7 +143,8 @@ struct NextMsgs {
   bool if_have_uwb;
   int64_t uwb_timestamp;
   Eigen::Vector3d uwb_position;
-  nlink_parser::LinktrackTagframe0 uwb_msg;
+  // nlink_parser::LinktrackTagframe0 uwb_msg;
+  UwbData uwb_msg;
 };
 
 struct LiDARCloudData {
@@ -144,18 +167,19 @@ struct LiDARCloudData {
   bool is_time_wrt_traj_start;
 
   void ToRelativeMeasureTime(int64_t traj_start_time) {
-    std::cout << "+++++++ raw_cloud size: " << raw_cloud->size() << std::endl;
+    // std::cout << "+++++++ raw_cloud size: " << raw_cloud->size() <<
+    // std::endl;
     CloudToRelativeMeasureTime(raw_cloud, timestamp, traj_start_time);
     CloudToRelativeMeasureTime(surf_cloud, timestamp, traj_start_time);
     CloudToRelativeMeasureTime(corner_cloud, timestamp, traj_start_time);
     timestamp -= traj_start_time;
 
-    std::cout << "------ raw_cloud size: " << raw_cloud->size() << std::endl;
+    // std::cout << "------ raw_cloud size: " << raw_cloud->size() << std::endl;
     max_timestamp = pcl::GetCloudMaxTimeNs(raw_cloud);
 
-    std::cout << "------ surf_cloud" << std::endl;
+    // std::cout << "------ surf_cloud" << std::endl;
     int64_t surf_max = pcl::GetCloudMaxTimeNs(surf_cloud);
-    std::cout << "------ corner_cloud" << std::endl;
+    // std::cout << "------ corner_cloud" << std::endl;
     int64_t corner_max = pcl::GetCloudMaxTimeNs(corner_cloud);
     if (surf_max > max_timestamp || corner_max > max_timestamp) {
       std::cout << RED << "surf/corner cloud max time wrong!" << RESET
@@ -188,23 +212,6 @@ struct ImageData {
 
   int64_t timestamp;
   cv::Mat image;
-  bool is_time_wrt_traj_start;
-};
-
-struct UwbData {
-  UwbData() : timestamp(0), is_time_wrt_traj_start(false) {}
-
-  void ToRelativeMeasureTime(int64_t traj_start_time) {
-    timestamp -= traj_start_time;
-    is_time_wrt_traj_start = true;
-  }
-
-  int64_t timestamp;
-  int64_t anchor_num;
-  int64_t tag_num;
-  std::unordered_map<int, Eigen::Vector3d> anchor_positions;
-  std::unordered_map<int, double> anchor_distances;
-  Eigen::Vector3d tag_position;
   bool is_time_wrt_traj_start;
 };
 

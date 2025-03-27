@@ -130,6 +130,11 @@ void TrajectoryManager::AddIMUData(const IMUData &data) {
   imu_state_estimator_->FeedIMUData(imu_data_.back());
 }
 
+void TrajectoryManager::AddUWBData(const UwbData &data) {
+  uwb_data_.emplace_back(data);
+  uwb_data_.back().timestamp -= trajectory_->GetDataStartTime();
+}
+
 void TrajectoryManager::AddPoseData(const PoseData &data) {
   pose_data_.emplace_back(data);
   pose_data_.back().timestamp -= trajectory_->GetDataStartTime();
@@ -143,6 +148,20 @@ void TrajectoryManager::RemoveIMUData(int64_t t_window_min) {
   for (auto iter = imu_data_.begin(); iter != imu_data_.end();) {
     if (iter->timestamp < t_window_min) {
       iter = imu_data_.erase(iter);
+    } else {
+      break;
+    }
+  }
+}
+
+void TrajectoryManager::RemoveUWBData(int64_t t_window_min) {
+  if (t_window_min < 0) return;
+
+  // https://stackoverflow.com/questions/991335/
+  // how-to-erase-delete-pointers-to-objects-stored-in-a-vector
+  for (auto iter = uwb_data_.begin(); iter != uwb_data_.end();) {
+    if (iter->timestamp < t_window_min) {
+      iter = uwb_data_.erase(iter);
     } else {
       break;
     }
@@ -434,7 +453,7 @@ bool TrajectoryManager::UpdateTrajectoryWithLICU(
     const Eigen::aligned_vector<PointCorrespondence> &point_corrs,
     const Eigen::aligned_vector<Eigen::Vector3d> &pnp_3ds,
     const Eigen::aligned_vector<Eigen::Vector2d> &pnp_2ds,
-    const std::deque<UwbData> &uwb_measurements, const int iteration) {
+    const int iteration) {
   if (point_corrs.empty() || imu_data_.empty() || imu_data_.size() == 1) {
     LOG(WARNING) << " input empty data " << point_corrs.size() << ", "
                  << imu_data_.size();
@@ -561,14 +580,24 @@ bool TrajectoryManager::UpdateTrajectoryWithLICU(
   }
 
   // [5] uwb factor
-  if (!uwb_measurements.empty()) {
+  LOG(INFO) << "===== uwb_data_ size: " << uwb_data_.size();
+  if (!uwb_data_.empty()) {
+    LOG(INFO) << " building UWB Factor... ";
     SO3d S_UtoI = trajectory_->GetSensorEP(UWBSensor).so3;
     Eigen::Vector3d p_UinI = trajectory_->GetSensorEP(UWBSensor).p;
 
-    for (const auto &uwb_meas : uwb_measurements) {
-      if (uwb_meas.timestamp < opt_min_t_ns) continue;
-      if (uwb_meas.timestamp >= opt_max_t_ns) continue;
-
+    for (const auto &uwb_meas : uwb_data_) {
+      if (uwb_meas.timestamp < opt_min_t_ns) {
+        LOG(INFO) << "===== uwb_meas.timestamp < opt_min_t_ns: "
+                  << "uwb_meas.timestamp: " << uwb_meas.timestamp
+                  << " opt_min_t_ns: " << opt_min_t_ns;
+        continue;
+      }
+      if (uwb_meas.timestamp >= opt_max_t_ns) {
+        LOG(INFO) << "===== uwb_meas.timestamp >= opt_max_t_ns";
+        continue;
+      }
+      LOG(INFO) << "===== AddUWBMeasurementAnalyticNURBS ";
       estimator->AddUWBMeasurementAnalyticNURBS(
           uwb_meas, S_GtoM, p_GinM, S_UtoI, p_UinI, opt_weight_.uwb_weight);
     }
@@ -579,10 +608,11 @@ bool TrajectoryManager::UpdateTrajectoryWithLICU(
   ceres::Solver::Summary summary = estimator->Solve(iteration, false);
   double opt_time = t_opt.toc();
   LOG(INFO) << "[t_opt] " << opt_time << std::endl;
-  LOG(INFO) << "LoamSolver " << summary.BriefReport();
+  LOG(INFO) << "LICUSolver " << summary.BriefReport();
   LOG(INFO) << ++loam_cnt << " UpdateLio Successful/Unsuccessful steps: "
             << summary.num_successful_steps << "/"
             << summary.num_unsuccessful_steps;
+  // LOG(INFO) << summary.FullReport();
 
   opt_cnt++;
   t_opt_sum += opt_time;
@@ -604,6 +634,7 @@ void TrajectoryManager::UpdateLiDARAttribute(double scan_time_min,
   if (trajectory_->maxTimeNsNURBS() > 25 * S_TO_NS) {
     int64_t t = trajectory_->maxTimeNsNURBS() - 15 * S_TO_NS;
     RemoveIMUData(t);
+    RemoveUWBData(t);
     RemovePoseData(t);
   }
 }

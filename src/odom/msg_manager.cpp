@@ -228,6 +228,7 @@ void MsgManager::SpinBagOnce() {
   } else if (msg_topic == uwb_topic_) {
     auto uwb_msg = m.instantiate<nlink_parser::LinktrackTagframe0>();
     UwbMsgHandle(uwb_msg);
+    LOG(INFO) << "UWB size: " << uwb_buf_.size();
   }
 
   view_iterator++;
@@ -285,6 +286,7 @@ void MsgManager::RemoveBeginData(int64_t start_time,             // not used
   for (auto iter = uwb_buf_.begin(); iter != uwb_buf_.end();) {
     if (iter->timestamp < relative_start_time) {
       iter = uwb_buf_.erase(iter);  //
+      LOG(INFO) << "Remove begin uwb data";
       continue;
     }
     iter++;
@@ -509,6 +511,22 @@ bool MsgManager::GetMsgs(NextMsgs &msgs, int64_t traj_last_max,
     }
   }
 
+  /// TODO 4
+  if (uwb_buf_.empty()) {
+    msgs.if_have_uwb = false;
+    LOG(INFO) << "uwb_buf_ is empty" << std::endl;
+  } else {
+    if (uwb_buf_.front().timestamp < traj_max) {
+      LOG(INFO) << "timestamp >= traj_max" << std::endl;
+      msgs.if_have_uwb = true;
+      msgs.uwb_msg = uwb_buf_.front();
+      uwb_buf_.pop_front();
+      LOG(INFO) << "uwb_buf_ pop_front: " << uwb_buf_.size();
+    } else {
+      LOG(INFO) << "timestamp < traj_max" << std::endl;
+      msgs.if_have_uwb = false;
+    }
+  }
   return true;
 }
 
@@ -706,7 +724,7 @@ void MsgManager::ImageMsgHandle(
 void MsgManager::UwbMsgHandle(
     const nlink_parser::LinktrackTagframe0::ConstPtr &uwb_msg) {
   UwbData temp_uwb_data;
-  temp_uwb_data.timestamp = uwb_msg->system_time;
+  temp_uwb_data.timestamp = uwb_msg->local_time * 1e3;
 
   // 为每个anchor设置其固定位置
   temp_uwb_data.anchor_positions = anchor_id_positions;

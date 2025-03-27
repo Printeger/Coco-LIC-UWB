@@ -1,4 +1,0 @@
-Log file created at: 2025/01/14 17:40:35
-Running on machine: DESKTOP-O5ET4G2
-Log line format: [IWEF]mmdd hh:mm:ss.uuuuuu threadid file:line] msg
-W0114 17:40:35.009380 3861030 parameter_struct.h:117] [ExtrinsicParam::Init] input yaml node has not parameters of Extrinsics struct. Return without Initialziation.

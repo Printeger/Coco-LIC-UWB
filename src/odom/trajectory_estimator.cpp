@@ -491,6 +491,7 @@ ceres::Solver::Summary TrajectoryEstimator::Solve(int max_iterations,
   // trajectory_->UpdateTimeOffset(t_offset_ns_opt_params_);
 
   if (this->options.show_residual_summary) {
+    LOG(INFO) << "Show residual summary";
     residual_summary_.PrintSummary(trajectory_->minTimeNs(),
                                    trajectory_->getDtNs(),
                                    fixed_control_point_index_);
