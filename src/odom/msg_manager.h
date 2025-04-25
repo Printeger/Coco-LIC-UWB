@@ -40,6 +40,7 @@
 
 #include <Eigen/Dense>
 #include <algorithm>
+#include <fstream>
 #include <map>
 #include <unordered_map>
 #include <utils/eigen_utils.hpp>
@@ -308,6 +309,10 @@ class MsgManager {
 
   void UwbMsgHandle(const nlink_parser::LinktrackTagframe0::ConstPtr &uwb_msg);
 
+  void GetUWBPosInit(UwbData &measurements);
+  void GetUWBPos(UwbData &measurements);
+  void CalcExtrinsic();
+
  public:
   bool has_valid_msg_;
 
@@ -352,6 +357,7 @@ class MsgManager {
   bool remove_wrong_time_imu_;
   bool if_normalized_;
   bool if_compressed_;
+  bool is_uwb_init_ = false;
 
   std::string imu_topic_;
   int num_lidars_;

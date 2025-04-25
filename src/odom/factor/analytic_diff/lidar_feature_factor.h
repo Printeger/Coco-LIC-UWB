@@ -244,13 +244,14 @@ class LoamFeatureFactorNURBS : public ceres::CostFunction,
       J_pi = pc_.geo_plane.head(3);
     } else {
       // omit item 1 =: 1.0 / measurement_.geo_normal.norm()
+      // pc_.geo_point: plane feature center point
       Vec3d dist_vec = (p_M - pc_.geo_point).cross(pc_.geo_normal);
       residuals[0] = dist_vec.norm();
 
       J_pi = -dist_vec.transpose() / residuals[0] * SO3d::hat(pc_.geo_normal);
     }
     residuals[0] *= weight_;
-
+    // LOG(INFO) << "===== LiDAR residuals[0]:" << residuals[0] << " =====";
     if (!jacobians) {
       return true;
     }
@@ -269,7 +270,7 @@ class LoamFeatureFactorNURBS : public ceres::CostFunction,
         }
       }
     }
-
+    // lidar point to Global then to map
     Mat3d J_Xm_R = -S_GtoM_.matrix() * S_ItoG.matrix() * SO3::hat(p_IK);
     Vec3d jac_lhs_R = Vec3d::Zero();
     Vec3d jac_lhs_P = Vec3d::Zero();

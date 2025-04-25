@@ -218,9 +218,6 @@ void OdometryManager::RunBag() {
       } else if (odometry_mode_ == LICUO) {
         SolveLICUO();
       }
-      // SolveLICO();
-      // SolveLIUO();
-      // SolveLICUO();
       LOG(INFO) << "[Update time]: " << t_update.toc() << " ms.";
       // deep copy
       msg_manager_->cur_msgs = NextMsgs();
@@ -833,7 +830,7 @@ bool OdometryManager::PrepareTwoSegMsgs(int seg_idx) {
   }
   for (auto &data : msg_manager_->uwb_buf_) {
     if (!data.is_time_wrt_traj_start) {
-      data.ToRelativeMeasureTime(data_start_time);
+      // data.ToRelativeMeasureTime(data_start_time);
       msg_manager_->uwb_max_timestamp_ = data.timestamp;
     }
   }
@@ -1010,9 +1007,9 @@ bool OdometryManager::PrepareMsgs() {
   }
   for (auto &data : msg_manager_->uwb_buf_) {
     if (!data.is_time_wrt_traj_start) {
-      data.ToRelativeMeasureTime(data_start_time);
+      // data.ToRelativeMeasureTime(data_start_time);
       msg_manager_->uwb_max_timestamp_ = data.timestamp;
-      LOG(INFO) << "[PrepareMsgs] UWB data time: " << data.timestamp;
+      // LOG(INFO) << "[PrepareMsgs] UWB data time: " << data.timestamp;
     }
   }
   msg_manager_->RemoveBeginData(data_start_time, 0);
@@ -1113,10 +1110,43 @@ void OdometryManager::SetInitialState() {
     trajectory_manager_->AddIMUData(imu_initializer_->GetIMUData().back());
     msg_manager_->imu_buf_.clear();
   }
+
   assert(trajectory_->GetDataStartTime() > 0 && "data start time < 0");
 }
 
 void OdometryManager::PublishCloudAndTrajectory() {
+  // Add UWB Anchors Visualization
+  if (odom_viewer_.pub_uwb_anchors_.getNumSubscribers() != 0 && uwb_handler_) {
+    visualization_msgs::MarkerArray anchor_markers;
+
+    // 获取UWB锚点坐标（假设UWBHandler有GetAnchorPositions接口）
+    int id = 0;
+    for (const auto &[anchor_id, position] :
+         msg_manager_->anchor_id_positions) {
+      visualization_msgs::Marker marker;
+      marker.header.frame_id = "map";
+      marker.header.stamp = ros::Time::now();
+      marker.ns = "uwb_anchors";
+      marker.id = id++;
+      marker.type = visualization_msgs::Marker::CUBE;
+      marker.action = visualization_msgs::Marker::ADD;
+      marker.pose.position.x = position.x();
+      marker.pose.position.y = position.y();
+      marker.pose.position.z = position.z();
+      marker.pose.orientation.w = 1.0;
+      marker.scale.x = 0.5;
+      marker.scale.y = 0.5;
+      marker.scale.z = 0.5;
+      marker.color.r = 1.0;
+      marker.color.g = 0.0;
+      marker.color.b = 0.0;
+      marker.color.a = 1.0;
+      marker.lifetime = ros::Duration(1000);
+      anchor_markers.markers.push_back(marker);
+    }
+    odom_viewer_.pub_uwb_anchors_.publish(anchor_markers);
+  }
+
   odom_viewer_.PublishDenseCloud(trajectory_, lidar_handler_->GetFeatureMapDs(),
                                  lidar_handler_->GetFeatureCurrent());
 

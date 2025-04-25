@@ -115,6 +115,8 @@ class OdometryManager {
 
   void PublishCloudAndTrajectory();
 
+  void GetUWBPosInit();
+
  protected:
   OdometryMode odometry_mode_;
 

@@ -132,6 +132,8 @@ void TrajectoryManager::AddIMUData(const IMUData &data) {
 
 void TrajectoryManager::AddUWBData(const UwbData &data) {
   uwb_data_.emplace_back(data);
+  // LOG(INFO) << "[AddUWBData] " << uwb_data_.back().timestamp << " "
+  //           << trajectory_->GetDataStartTime();
   uwb_data_.back().timestamp -= trajectory_->GetDataStartTime();
 }
 
@@ -588,24 +590,27 @@ bool TrajectoryManager::UpdateTrajectoryWithLICU(
 
     for (const auto &uwb_meas : uwb_data_) {
       if (uwb_meas.timestamp < opt_min_t_ns) {
-        LOG(INFO) << "===== uwb_meas.timestamp < opt_min_t_ns: "
-                  << "uwb_meas.timestamp: " << uwb_meas.timestamp
-                  << " opt_min_t_ns: " << opt_min_t_ns;
+        // LOG(INFO) << "===== uwb_meas.timestamp < opt_min_t_ns: "
+        //           << "uwb_meas.timestamp: " << uwb_meas.timestamp
+        //           << " opt_min_t_ns: " << opt_min_t_ns;
         continue;
       }
       if (uwb_meas.timestamp >= opt_max_t_ns) {
-        LOG(INFO) << "===== uwb_meas.timestamp >= opt_max_t_ns";
         continue;
       }
-      LOG(INFO) << "===== AddUWBMeasurementAnalyticNURBS ";
       estimator->AddUWBMeasurementAnalyticNURBS(
           uwb_meas, S_GtoM, p_GinM, S_UtoI, p_UinI, opt_weight_.uwb_weight);
+      // estimator->AddUWBMeasurementAutoDiffNURBS(
+      // uwb_meas, S_GtoM, p_GinM, S_UtoI, p_UinI, opt_weight_.uwb_weight);
     }
   }
 
   TicToc t_opt;
   static int loam_cnt = 0;
   ceres::Solver::Summary summary = estimator->Solve(iteration, false);
+  // ceres::Solver::Summary summary = estimator->Solve(iteration, true);  //
+  // Debug
+
   double opt_time = t_opt.toc();
   LOG(INFO) << "[t_opt] " << opt_time << std::endl;
   LOG(INFO) << "LICUSolver " << summary.BriefReport();

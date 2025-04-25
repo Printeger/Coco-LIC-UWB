@@ -144,6 +144,8 @@ struct OptWeight {
 
     image_weight = yaml::GetValue<double>(node, "image_weight");
 
+    uwb_weight = yaml::GetValue<double>(node, "uwb_weight");
+
     print();
   }
 

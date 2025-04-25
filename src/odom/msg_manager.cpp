@@ -228,7 +228,9 @@ void MsgManager::SpinBagOnce() {
   } else if (msg_topic == uwb_topic_) {
     auto uwb_msg = m.instantiate<nlink_parser::LinktrackTagframe0>();
     UwbMsgHandle(uwb_msg);
-    LOG(INFO) << "UWB size: " << uwb_buf_.size();
+    if (uwb_buf_.empty()) {
+      LOG(ERROR) << "UWB buf empty ";
+    }
   }
 
   view_iterator++;
@@ -721,24 +723,132 @@ void MsgManager::ImageMsgHandle(
   // }
 }
 
+void MsgManager::GetUWBPosInit(UwbData &measurements) {
+  Eigen::Matrix<float, 5, 1> matB0;
+  matB0.fill(-1);
+  LOG(INFO) << "matB0: " << matB0(0, 0) << " " << matB0(1, 0) << " "
+            << matB0(2, 0);
+
+  Eigen::Matrix3d R1 = Eigen::Matrix3d::Identity();
+  Eigen::Vector3d t1;
+  R1 << 0.406165301800, -0.913799643517, 0.00000000000, 0.913799643517,
+      0.406165301800, 0.000000000000, 0.000000000000, 0.000000000000,
+      1.000000000000;
+  t1 << -3.024960279465, 9.532732009888, -0.889378666879;
+  Eigen::Isometry3d extrinsic_matrix = Eigen::Isometry3d::Identity();
+  extrinsic_matrix.rotate(R1);
+  extrinsic_matrix.pretranslate(t1);
+
+  // reduce the init_position to all anchor positions
+  for (auto &[anchor_id, anchor_pos] : anchor_id_positions) {
+    LOG(INFO) << "old anchor_pos : " << anchor_pos.transpose();
+
+    Eigen::Vector4d anchor_pos_4d =
+        Eigen::Vector4d(anchor_pos.x(), anchor_pos.y(), anchor_pos.z(), 1);
+    Eigen::Vector4d anchor_pos_4d_transformed =
+        extrinsic_matrix * anchor_pos_4d;
+    anchor_pos = Eigen::Vector3d(anchor_pos_4d_transformed.x(),
+                                 anchor_pos_4d_transformed.y(),
+                                 anchor_pos_4d_transformed.z());
+    LOG(INFO) << "anchor_id: " << anchor_id
+              << " | new anchor_pos: " << anchor_pos.transpose();
+    anchor_id_positions[anchor_id] = anchor_pos;
+  }
+}
+
+void MsgManager::GetUWBPos(UwbData &measurements) {
+  if (measurements.anchor_distances.size() >= 3) {  // 至少需要3个锚点
+    Eigen::Vector3d uwb_position = Eigen::Vector3d::Zero();
+
+    const size_t n = anchor_id_positions.size();
+    Eigen::MatrixXd A(n - 1, 3);
+    Eigen::VectorXd b(n - 1);
+
+    // 获取第一个锚点作为参考
+    auto it = anchor_id_positions.begin();
+    const Eigen::Vector3d &anchor0 = it->second;
+    const double distance0 = measurements.anchor_distances.at(it->first);
+    ++it;
+
+    // 构建线性方程组
+    for (size_t i = 0; i < n - 1; ++i, ++it) {
+      const Eigen::Vector3d &anchor = it->second;
+      const double distance = measurements.anchor_distances.at(it->first);
+
+      A(i, 0) = 2 * (anchor.x() - anchor0.x());
+      A(i, 1) = 2 * (anchor.y() - anchor0.y());
+      A(i, 2) = 2 * (anchor.z() - anchor0.z());
+
+      const double d0_sq = distance0 * distance0;
+      const double di_sq = distance * distance;
+      const double anchor0_sq = anchor0.squaredNorm();
+      const double anchor_i_sq = anchor.squaredNorm();
+
+      b(i) = d0_sq - di_sq - anchor0_sq + anchor_i_sq;
+    }
+
+    // 求解最小二乘解: x = (A^T A)^-1 A^T b
+    uwb_position = A.householderQr().solve(b);
+
+    // save the uwb_position in txt
+    std::ofstream outfile(
+        "/home/mint/ws_uav_setup/src/Coco-LIC-UWB/data/uwb_position.txt",
+        std::ios::app);
+    if (outfile.is_open()) {
+      outfile << std::setprecision(19) << measurements.timestamp * 1e-9 << " "
+              << uwb_position[0] << " " << uwb_position[1] << " " << 0 << " "
+              << 0 << " " << 0 << " " << 0 << " " << 0 << std::endl;
+      outfile.close();
+    } else {
+      std::cerr << "Unable to open file uwb_position.txt" << std::endl;
+    }
+  } else {
+    LOG(INFO) << YELLOW
+              << "\n⚠️  Insufficient UWB measurements for initialization: "
+              << measurements.anchor_distances.size() << "/3" << RESET;
+  }
+}
+
+void MsgManager::CalcExtrinsic() {
+  Eigen::Matrix3d R1 = Eigen::Matrix3d::Identity();
+  Eigen::Vector3d t1;
+  R1 << 0.406165301800, -0.913799643517, 0.00000000000, 0.913799643517,
+      0.406165301800, 0.000000000000, 0.000000000000, 0.000000000000,
+      1.000000000000;
+  t1 << -3.024960279465, 9.532732009888, -0.889378666879;
+  Eigen::Isometry3d extrinsic_matrix = Eigen::Isometry3d::Identity();
+  extrinsic_matrix.rotate(R1);
+  extrinsic_matrix.pretranslate(t1);
+}
+
 void MsgManager::UwbMsgHandle(
     const nlink_parser::LinktrackTagframe0::ConstPtr &uwb_msg) {
   UwbData temp_uwb_data;
   temp_uwb_data.timestamp = uwb_msg->local_time * 1e3;
+  // LOG(INFO) << "UWB timestamp: " << temp_uwb_data.timestamp;
 
-  // 为每个anchor设置其固定位置
-  temp_uwb_data.anchor_positions = anchor_id_positions;
-
-  // 处理距离数据
   int anchor_num = 0;
-  for (size_t i = 0; i < uwb_msg->dis_arr.size() && uwb_msg->dis_arr[i] > 1e-5;
-       i++) {
-    temp_uwb_data.anchor_distances[i] = uwb_msg->dis_arr[i];
-    anchor_num++;
+  for (size_t i = 0; i < uwb_msg->dis_arr.size(); i++) {
+    if (uwb_msg->dis_arr[i] > 1e-3) {
+      temp_uwb_data.anchor_distances[i] = uwb_msg->dis_arr[i];
+      anchor_num++;
+    } else {
+      LOG(INFO) << "Jump UWB anchor " << i
+                << " distance: " << uwb_msg->dis_arr[i];
+      continue;
+    }
   }
+  LOG(INFO) << "UWB anchor_num: " << anchor_num;
   temp_uwb_data.anchor_num = anchor_num;
   temp_uwb_data.tag_position = Eigen::Vector3d(
       uwb_msg->pos_3d[0], uwb_msg->pos_3d[1], uwb_msg->pos_3d[2]);
+
+  // GetUWBPos(temp_uwb_data);
+  if (!is_uwb_init_) {
+    GetUWBPosInit(temp_uwb_data);
+    is_uwb_init_ = true;
+  }
+  temp_uwb_data.anchor_positions = anchor_id_positions;
 
   uwb_buf_.emplace_back(temp_uwb_data);
 }

@@ -152,7 +152,7 @@ void TrajectoryEstimator::AddIMUMeasurementAnalyticNURBS(
     double *gravity, const Eigen::Matrix<double, 6, 1> &info_vec,
     bool marg_this_factor) {
   int64_t time_ns = imu_data.timestamp;
-  std::pair<int, double> su;  // i u
+  std::pair<int, double> su;  // i u  // su = (i, u) 对，表示样条参数
   trajectory_->GetIdxT(time_ns, su);
 
   // std::cout << "[time_ns | maxTime] " << time_ns << " " <<
@@ -295,13 +295,41 @@ void TrajectoryEstimator::AddUWBMeasurementAnalyticNURBS(
   std::vector<double *> vec;
   AddControlPointsNURBS(su.first - 3, vec);
   AddControlPointsNURBS(su.first - 3, vec, true);
-
   ceres::LossFunction *loss_function = NULL;
   problem_->AddResidualBlock(cost_function, loss_function, vec);
 
   if (options.show_residual_summary) {
     residual_summary_.AddResidualInfo(RType_UWB, cost_function, vec);
   }
+}
+
+void TrajectoryEstimator::AddUWBMeasurementAutoDiffNURBS(
+    const UwbData &uwb_measurement, const SO3d &S_GtoM,
+    const Eigen::Vector3d &p_GinM, const SO3d &S_UtoI,
+    const Eigen::Vector3d &p_UinI, double uwb_weight) {
+  // int64_t time_ns = uwb_measurement.timestamp;
+  // std::pair<int, double> su;  // i u
+  // trajectory_->GetIdxT(time_ns, su);
+
+  // Eigen::Matrix4d blending_matrix = trajectory_->blending_mats[su.first - 3];
+  // Eigen::Matrix4d cumulative_blending_matrix =
+  //     trajectory_->cumu_blending_mats[su.first - 3];
+
+  // using Functor = analytic_derivative::UWBFactorNURBSAutoDiff;
+  // auto *cost_function = new AutoDiffCostFunction<Functor, 1, 4>(
+  //     time_ns, uwb_measurement, su, blending_matrix,
+  //     cumulative_blending_matrix, S_GtoM, p_GinM, S_UtoI, p_UinI,
+  //     uwb_weight);
+
+  // std::vector<double *> vec;
+  // AddControlPointsNURBS(su.first - 3, vec);
+  // AddControlPointsNURBS(su.first - 3, vec, true);
+  // ceres::LossFunction *loss_function = NULL;
+  // problem_->AddResidualBlock(cost_function, loss_function, vec);
+
+  // if (options.show_residual_summary) {
+  //   residual_summary_.AddResidualInfo(RType_UWB, cost_function, vec);
+  // }
 }
 
 void TrajectoryEstimator::AddBiasFactor(

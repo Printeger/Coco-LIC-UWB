@@ -89,6 +89,9 @@ class OdometryViewer {
 
   ros::Publisher pub_odom_gt_;
 
+  // UWB
+  ros::Publisher pub_uwb_anchors_;
+
   // direct visual odometry
   ros::Publisher pub_track_img_;
   ros::Publisher pub_undistort_scan_in_cur_img_;
@@ -191,6 +194,9 @@ class OdometryViewer {
         nh.advertise<geometry_msgs::PoseStamped>("/keyframe_pose", 1000);
     pub_keyframe_points_ =
         nh.advertise<sensor_msgs::PointCloud2>("/keyframe_points", 1000);
+
+    pub_uwb_anchors_ =
+        nh.advertise<visualization_msgs::MarkerArray>("/uwb_anchors", 1);
 
     // std::cout << "[SetPublisher] init done.\n";
   }
@@ -684,12 +690,12 @@ class OdometryViewer {
         source_cloud.push_back(p);
       }
 
-      // map_cloud_ += source_cloud;
-      // if (!map_cloud_.empty()) {
-      //   pcl::io::savePCDFileBinary(
-      //       "/home/mint/ws_uav_setup/src/Coco-LIC-UWB/data/map_cloud.pcd",
-      //       map_cloud_);
-      // }
+      map_cloud_ += source_cloud;
+      if (!map_cloud_.empty()) {
+        pcl::io::savePCDFileBinary(
+            "/home/mint/ws_uav_setup/src/Coco-LIC-UWB/data/map_cloud.pcd",
+            map_cloud_);
+      }
 
       sensor_msgs::PointCloud2 source_msg;
       pcl::toROSMsg(source_cloud, source_msg);

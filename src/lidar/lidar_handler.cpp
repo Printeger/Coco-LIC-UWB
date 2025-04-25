@@ -691,7 +691,8 @@ bool LidarHandler::FindCorrespondence(const LiDARFeature &lf_cur,
       point_cor.point = Eigen::Vector3d(lf_cur.surface_features->points[i].x,
                                         lf_cur.surface_features->points[i].y,
                                         lf_cur.surface_features->points[i].z);
-      point_cor.geo_plane = Eigen::Vector4d(pa, pb, pc, pd);
+      point_cor.geo_plane =
+          Eigen::Vector4d(pa, pb, pc, pd);  // 单位法向量？还是
       point_cor.scale = s;
       point_correspondence_.push_back(point_cor);
 
